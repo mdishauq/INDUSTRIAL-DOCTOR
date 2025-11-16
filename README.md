@@ -243,14 +243,3 @@ Command Checker
 # **SLIDE 18 — Thank You**
 
 Questions?
-
----
-
-If you want, I can now generate:
-✔ A complete **block diagram image**
-✔ A **flowchart image**
-✔ A **downloadable PPT file**
-✔ A **speaker notes script** for your review presentation
-✔ Or simplify the PPT for a shorter presentation
-
-Just tell me!
