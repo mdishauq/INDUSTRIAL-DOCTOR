@@ -1,3 +1,32 @@
+/**
+ * Initialize AOS (Animate On Scroll) animations
+ * Provides scroll-triggered reveal animations
+ */
+function initAOS() {
+  if (typeof AOS !== 'undefined') {
+    AOS.init({
+      duration: 800,
+      easing: 'ease-in-out-cubic',
+      once: false,
+      mirror: false,
+      offset: 100,
+      delay: 0,
+    });
+  }
+}
+
+/**
+ * Initialize code syntax highlighting
+ * Highlights code blocks with Highlight.js
+ */
+function initCodeHighlighting() {
+  if (typeof hljs !== 'undefined') {
+    document.querySelectorAll('pre code').forEach((block) => {
+      hljs.highlightElement(block);
+    });
+  }
+}
+
 // Enhanced state loop with more realistic transitions
 const stateLoop = [
   { state: "HEALTHY", color: "#2d7a68", confidence: 87, note: "Machine behavior is stable and within expected operation." },
@@ -218,19 +247,56 @@ function initSmoothAnchors() {
       if (!target) return;
 
       e.preventDefault();
-      target.scrollIntoView({ 
-        behavior: "smooth", 
-        block: "start" 
+      
+      // Smooth scroll with offset for sticky header
+      const headerOffset = 100;
+      const elementPosition = target.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: "smooth"
       });
 
       // Add highlight effect
-      const originalBg = target.style.backgroundColor;
-      target.style.backgroundColor = "rgba(212, 241, 235, 0.3)";
       setTimeout(() => {
-        target.style.backgroundColor = originalBg;
-        target.style.transition = "background-color 400ms ease";
-      }, 50);
+        const originalBg = target.style.backgroundColor;
+        target.style.backgroundColor = "rgba(0, 217, 255, 0.1)";
+        target.style.transition = "background-color 600ms ease";
+        setTimeout(() => {
+          target.style.backgroundColor = originalBg;
+        }, 600);
+      }, 400);
     });
+  });
+
+  // Update active nav link on scroll
+  window.addEventListener('scroll', () => {
+    updateActiveNavLink();
+  });
+}
+
+/**
+ * Update active navigation link based on scroll position
+ */
+function updateActiveNavLink() {
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks = document.querySelectorAll('nav a[href^="#"]');
+
+  let current = '';
+  sections.forEach((section) => {
+    const sectionTop = section.offsetTop;
+    const sectionHeight = section.clientHeight;
+    if (pageYOffset >= sectionTop - 200) {
+      current = section.getAttribute('id');
+    }
+  });
+
+  navLinks.forEach((link) => {
+    link.style.color = '';
+    if (link.getAttribute('href') === '#' + current) {
+      link.style.color = 'var(--green-primary)';
+    }
   });
 }
 
@@ -352,19 +418,33 @@ window.addEventListener("DOMContentLoaded", () => {
     initCharts();
     initSmoothAnchors();
     initOledSimulations();
+    initCodeHighlighting();
+    initAOS();
   });
 });
 
 /**
- * Add scroll effect to topbar
+ * Add enhanced scroll effect to topbar
+ * Increases blur and shadow on scroll
  */
 window.addEventListener("scroll", () => {
   const topbar = document.querySelector(".topbar");
   if (!topbar) return;
   
-  if (window.scrollY > 50) {
+  const scrollY = window.scrollY;
+  const maxBlur = 20;
+  const blurIntensity = Math.min(scrollY / 500, 1);
+  const blur = 16 + (blurIntensity * (maxBlur - 16));
+  
+  if (scrollY > 50) {
     topbar.style.boxShadow = "var(--shadow-mid)";
+    topbar.style.backdropFilter = `blur(${blur}px)`;
+    topbar.style.webkitBackdropFilter = `blur(${blur}px)`;
+    topbar.style.backgroundColor = `rgba(248, 250, 246, ${0.7 + (blurIntensity * 0.2)})`;
   } else {
     topbar.style.boxShadow = "var(--shadow-soft)";
+    topbar.style.backdropFilter = "blur(16px)";
+    topbar.style.webkitBackdropFilter = "blur(16px)";
+    topbar.style.backgroundColor = "rgba(248, 250, 246, 0.7)";
   }
 });

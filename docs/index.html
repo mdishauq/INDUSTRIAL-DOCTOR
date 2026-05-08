@@ -8,8 +8,12 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Newsreader:ital,wght@0,400;0,500;0,700;1,400;1,500&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/aos@next/dist/aos.css">
   <link rel="stylesheet" href="styles.css">
   <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script defer src="https://unpkg.com/aos@next/dist/aos.js"></script>
   <script defer src="script.js"></script>
 </head>
 <body>
@@ -104,6 +108,133 @@
       <div class="highlight-box">
         <h4>🚀 Real-World Impact</h4>
         <p>Plant operators, maintenance supervisors, and production managers gain early warning before breakdowns. Teams make practical maintenance decisions faster with data-backed confidence signals.</p>
+      </div>
+    </section>
+
+    <!-- ============= BENTO GRID FEATURES ============= -->
+    <section class="container section reveal">
+      <div class="section-head">
+        <div class="accent-line"></div>
+        <p class="eyebrow">Core Features</p>
+        <h2>Advanced Monitoring Capabilities</h2>
+        <p class="muted">Powerful features built into every deployment</p>
+      </div>
+
+      <div class="bento-grid">
+        <article class="bento-card bento-1" data-aos="fade-up" data-aos-delay="0">
+          <div class="bento-icon">⚡</div>
+          <h3>Real-Time Analysis</h3>
+          <p>Instant signal processing with sub-100ms latency for immediate response to anomalies.</p>
+        </article>
+
+        <article class="bento-card bento-2" data-aos="fade-up" data-aos-delay="100">
+          <div class="bento-icon">🔬</div>
+          <h3>Adaptive Intelligence</h3>
+          <p>Self-learning baseline that adapts to machine behavior over time, reducing false alarms.</p>
+        </article>
+
+        <article class="bento-card bento-3" data-aos="fade-up" data-aos-delay="200">
+          <div class="bento-icon">🎯</div>
+          <h3>Multi-Parameter Detection</h3>
+          <p>Analyzes RMS, Peak Hz, Centroid, Kurtosis, and Zero-Crossing Rate simultaneously.</p>
+        </article>
+
+        <article class="bento-card bento-4" data-aos="fade-up" data-aos-delay="300">
+          <div class="bento-icon">🛡️</div>
+          <h3>Offline Operation</h3>
+          <p>Completely edge-deployed. Works without internet, cloud, or external dependencies.</p>
+        </article>
+
+        <article class="bento-card bento-5" data-aos="fade-up" data-aos-delay="400">
+          <div class="bento-icon">📊</div>
+          <h3>Historical Tracking</h3>
+          <p>Maintains rolling baselines and historical patterns for trend analysis and predictions.</p>
+        </article>
+
+        <article class="bento-card bento-6" data-aos="fade-up" data-aos-delay="500">
+          <div class="bento-icon">🌐</div>
+          <h3>Low Power Design</h3>
+          <p>Optimized firmware consumes minimal power—runs on standard batteries for weeks.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============= CODE IMPLEMENTATION SECTION ============= -->
+    <section class="container section reveal">
+      <div class="section-head">
+        <div class="accent-line"></div>
+        <p class="eyebrow">Integration Guide</p>
+        <h2>Example Integration Code</h2>
+        <p class="muted">Quick reference for integrating Industrial Doctor into your system</p>
+      </div>
+
+      <div class="code-showcase">
+        <div class="code-block" data-aos="fade-right">
+          <div class="code-header">
+            <span class="code-lang">python</span>
+            <span class="code-title">Device Communication</span>
+          </div>
+          <pre><code class="language-python">import serial
+import json
+
+class IndustrialDoctorClient:
+    def __init__(self, port='/dev/ttyUSB0', baud=115200):
+        self.serial = serial.Serial(port, baud, timeout=1)
+    
+    def read_status(self):
+        """Fetch current device status"""
+        if self.serial.in_waiting:
+            line = self.serial.readline().decode().strip()
+            return json.loads(line)
+        return None
+    
+    def get_health(self):
+        """Get machine health state"""
+        data = self.read_status()
+        return {
+            'state': data.get('state'),  # HEALTHY, FAULT, AMBIENT
+            'confidence': data.get('confidence'),  # 0-100%
+            'timestamp': data.get('timestamp')
+        }
+
+# Usage
+doctor = IndustrialDoctorClient()
+status = doctor.get_health()
+print(f"Machine status: {status['state']} ({status['confidence']}%)")</code></pre>
+        </div>
+
+        <div class="code-block" data-aos="fade-left" data-aos-delay="100">
+          <div class="code-header">
+            <span class="code-lang">javascript</span>
+            <span class="code-title">Web Dashboard Integration</span>
+          </div>
+          <pre><code class="language-javascript">// Establish real-time connection to device
+const socket = new WebSocket('ws://device-ip:8080/status');
+
+socket.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  
+  // Update UI with live status
+  updateDashboard({
+    state: data.state,
+    confidence: data.confidence,
+    metrics: {
+      rms: data.rms,
+      peakHz: data.peakHz,
+      centroid: data.centroid
+    }
+  });
+  
+  // Alert if fault detected
+  if (data.state === 'FAULT') {
+    notifyMaintenance('Anomaly detected', data);
+  }
+};
+
+socket.onerror = (error) => {
+  console.error('Connection lost:', error);
+};</code></pre>
+        </div>
       </div>
     </section>
 
