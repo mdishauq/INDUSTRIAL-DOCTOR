@@ -35,9 +35,9 @@
       <ul class="nav-list">
         <li><a href="#pipeline">Pipeline</a></li>
         <li><a href="#architecture">Architecture</a></li>
-        <li><a href="#features">8 Features</a></li>
+        <li><a href="#signals">Signal Analysis</a></li>
+        <li><a href="#code">Code Snippets</a></li>
         <li><a href="#voter">Fault Voting</a></li>
-        <li><a href="#code">Source Code</a></li>
         <li><a href="https://github.com/mdishauq/INDUSTRIAL-DOCTOR" target="_blank" rel="noopener noreferrer" class="github-link">GitHub ↗</a></li>
       </ul>
     </nav>
@@ -158,48 +158,182 @@
       </div>
     </section>
 
-    <!-- ============= 8 EXTRACTED FEATURES SECTION ============= -->
-    <section id="features" class="container section reveal">
+    <!-- ============= SIGNAL ANALYSIS & GRAPHICAL PLOTS SECTION ============= -->
+    <section id="signals" class="container section reveal">
       <div class="section-head">
         <div class="accent-line" aria-hidden="true"></div>
-        <p class="eyebrow">Signal Metrics</p>
-        <h2>The 8 Extracted Motor Features</h2>
-        <p class="muted">Every 1,024-sample audio frame is distilled into these robust numerical indicators.</p>
+        <p class="eyebrow">Signal Analysis &amp; Data Capture</p>
+        <h2>Acoustic Waveform Plots &amp; Feature Extraction</h2>
+        <p class="muted">Real capture plots generated during signal analysis for ambient noise, healthy operation, and fault states.</p>
       </div>
 
-      <div class="card-grid four">
-        <article class="info-card">
-          <h3>1. RMS</h3>
-          <p>Root Mean Square of signal amplitude. Measures overall acoustic energy and detects motor operation vs ambient silence.</p>
-        </article>
-        <article class="info-card">
-          <h3>2. RMS Stability</h3>
-          <p>Standard deviation of recent RMS history. High values indicate load fluctuations or mechanical unbalance.</p>
-        </article>
-        <article class="info-card">
-          <h3>3. Peak Frequency</h3>
-          <p>Dominant frequency identified via Goertzel algorithm scan from 20 Hz to 7,500 Hz.</p>
-        </article>
-        <article class="info-card">
-          <h3>4. Kurtosis</h3>
-          <p>Fourth statistical moment measuring waveform peakedness. Spikes above 3.4 indicate bearing impact shocks.</p>
-        </article>
-        <article class="info-card">
-          <h3>5. Crest Factor</h3>
-          <p>Ratio of peak absolute amplitude to RMS (&gt;4.1 threshold) for detecting sharp mechanical impacts.</p>
-        </article>
-        <article class="info-card">
-          <h3>6. Spectral Centroid</h3>
-          <p>Weighted mean frequency representing sound brightness. High centroid (&gt;1400Hz) indicates friction/dragging.</p>
-        </article>
-        <article class="info-card">
-          <h3>7. Zero-Crossing Rate</h3>
-          <p>Counts polarity switches above noise floor (80.0f). Measures signal chaos and high-frequency content.</p>
-        </article>
-        <article class="info-card">
-          <h3>8. Envelope RMS</h3>
-          <p>Derived from high-pass filtered rectification and smoothing to capture rolling element modulation.</p>
-        </article>
+      <div class="photo-grid">
+        <figure class="photo-card">
+          <img src="assets/chart_ambient.jpg" alt="Ambient noise signal analysis graph">
+          <figcaption><strong>Ambient Noise Waveform:</strong> Exhibits chaotic, full-range frequency fluctuations with no organized mechanical source.</figcaption>
+        </figure>
+
+        <figure class="photo-card">
+          <img src="assets/chart_healthy.jpg" alt="Healthy motor operation signal analysis graph">
+          <figcaption><strong>Healthy Motor Waveform:</strong> Stable narrow-band frequency response with smooth, gradual RMS and centroid transitions.</figcaption>
+        </figure>
+
+        <figure class="photo-card">
+          <img src="assets/chart_fault.jpg" alt="Fault condition signal analysis graph">
+          <figcaption><strong>Fault Condition Waveform:</strong> Clear isolated impulse spikes and high kurtosis events signaling developing bearing or mechanical stress.</figcaption>
+        </figure>
+
+        <figure class="photo-card">
+          <img src="assets/chart_healthy (1).jpg" alt="Secondary healthy motor baseline verification run">
+          <figcaption><strong>Baseline Verification (Run 1):</strong> Ensuring repeatability and low variance across calibration sample windows.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ============= EXTENSIVE CODE SNIPPETS SECTION ============= -->
+    <section id="code" class="container section reveal">
+      <div class="section-head">
+        <div class="accent-line" aria-hidden="true"></div>
+        <p class="eyebrow">Firmware Source Code</p>
+        <h2>Comprehensive C++ Implementation Snippets</h2>
+        <p class="muted">Explore the core logic driving multi-core task scheduling, feature extraction, anomaly scoring, and fault voting.</p>
+      </div>
+
+      <div class="code-showcase" style="grid-template-columns: 1fr;">
+        <!-- Snippet 1: main.cpp -->
+        <div class="code-block" data-aos="fade-up">
+          <div class="code-header">
+            <span class="code-lang">cpp</span>
+            <span class="code-title">src/main.cpp - FreeRTOS Multi-Core Task Spawning &amp; Calibration</span>
+          </div>
+          <pre><code class="language-cpp">void setup() {
+    Serial.begin(115200);
+    Wire.begin();
+    
+    // OLED Detection &amp; Boot Animation
+    if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+        for(;;); // Halt if OLED missing
+    }
+    oled_boot_animation(display, true);
+
+    // Initialize I2S Microphone &amp; Calibration Wizard
+    extractor.begin();
+    runAmbientCalibration();
+    runHealthyMotorCalibration();
+
+    // Create FreeRTOS Queues &amp; Mutexes
+    xAudioQueue = xQueueCreate(3, sizeof(MotorFeatures));
+    xDataMutex = xSemaphoreCreateMutex();
+
+    // Pin Tasks to Cores
+    xTaskCreatePinnedToCore(TaskAcquire, "AcquireTask", 4096, NULL, 3, &amp;TaskAcquireHandle, 0);
+    xTaskCreatePinnedToCore(TaskProcess, "ProcessTask", 4096, NULL, 2, &amp;TaskProcessHandle, 1);
+    xTaskCreatePinnedToCore(TaskUI, "UITask", 4096, NULL, 1, &amp;TaskUIHandle, 1);
+}</code></pre>
+        </div>
+
+        <!-- Snippet 2: feature_extraction.cpp -->
+        <div class="code-block" data-aos="fade-up">
+          <div class="code-header">
+            <span class="code-lang">cpp</span>
+            <span class="code-title">src/feature_extraction.cpp - I2S DMA Frame Read &amp; RMS / Kurtosis Calculation</span>
+          </div>
+          <pre><code class="language-cpp">MotorFeatures FeatureExtractor::getNextFeatures() {
+    size_t bytesRead = 0;
+    i2s_read(I2S_NUM_0, dmaBuffer, sizeof(dmaBuffer), &amp;bytesRead, portMAX_DELAY);
+    int numSamples = bytesRead / sizeof(int32_t);
+
+    float sumSq = 0.0f;
+    float m4 = 0.0f;
+    float maxAbs = 0.0f;
+
+    for (int i = 0; i &lt; numSamples; i++) {
+        float sample = (float)dmaBuffer[i] / 2147483648.0f; // Normalize 32-bit
+        sumSq += sample * sample;
+        float absVal = fabsf(sample);
+        if (absVal &gt; maxAbs) maxAbs = absVal;
+    }
+
+    float rms = sqrtf(sumSq / numSamples);
+    float variance = sumSq / numSamples;
+    float kurtosis = (variance &gt; 0.0f) ? (m4 / numSamples) / (variance * variance) : 0.0f;
+
+    MotorFeatures f;
+    f.rms = rms;
+    f.crestFactor = (rms &gt; 0.0f) ? (maxAbs / rms) : 0.0f;
+    f.kurtosis = kurtosis;
+    return f;
+}</code></pre>
+        </div>
+
+        <!-- Snippet 3: anomaly_engine.cpp -->
+        <div class="code-block" data-aos="fade-up">
+          <div class="code-header">
+            <span class="code-lang">cpp</span>
+            <span class="code-title">src/anomaly_engine.cpp - Welford's Online Variance &amp; Z-Score Engine</span>
+          </div>
+          <pre><code class="language-cpp">void AnomalyEngine::addSample(const float* features) {
+    _sampleCount++;
+    for (int i = 0; i &lt; 8; i++) {
+        float x = features[i];
+        float delta = x - _mean[i];
+        _mean[i] += delta / _sampleCount;
+        float delta2 = x - _mean[i];
+        _m2[i] += delta * delta2;
+    }
+}
+
+float AnomalyEngine::score(const float* features) {
+    float totalZ = 0.0f;
+    for (int i = 0; i &lt; 8; i++) {
+        float stdDev = sqrtf(_m2[i] / (_sampleCount - 1));
+        if (stdDev &lt; 1e-3f) stdDev = 1e-3f; // Epsilon guard
+        float z = fabsf(features[i] - _mean[i]) / stdDev;
+        totalZ += fminf(z, 6.0f); // Cap outlier impact
+    }
+    float avgZ = totalZ / 8.0f;
+    return fminf(fmaxf((avgZ - 2.0f) / 3.0f, 0.0f), 1.0f);
+}</code></pre>
+        </div>
+
+        <!-- Snippet 4: diagnosis_voter.cpp -->
+        <div class="code-block" data-aos="fade-up">
+          <div class="code-header">
+            <span class="code-lang">cpp</span>
+            <span class="code-title">src/diagnosis_voter.cpp - Hybrid Physics &amp; Anomaly Ensemble Voting</span>
+          </div>
+          <pre><code class="language-cpp">DiagnosisResult DiagnosisVoter::voteEnsemble(const float* features, float anomalyScore) {
+    float rms = features[0];
+    float crest = features[4];
+    float kurtosis = features[3];
+
+    DiagnosisResult res;
+
+    // 1. Priority Fault Checks (Physics Rules)
+    if (crest &gt; 4.10f || kurtosis &gt; 3.40f) {
+        res.status = STATUS_FAULTY;
+        res.faultType = FAULT_BEARING;
+        res.label = "Bearing Damage";
+        res.confidence = 0.92f;
+        return res;
+    }
+
+    // 2. Hybrid Ensemble Scoring
+    float physicsScore = (rms &gt; ambientThreshold) ? 0.1f : 0.8f;
+    float finalAnomaly = (physicsScore * 0.40f) + (anomalyScore * 0.60f);
+
+    if (finalAnomaly &lt;= 0.35f) {
+        res.status = STATUS_HEALTHY;
+        res.label = "Motor Healthy";
+        res.confidence = 1.0f - finalAnomaly;
+    } else {
+        res.status = STATUS_FAULTY;
+        res.label = "System Anomaly";
+        res.confidence = finalAnomaly;
+    }
+    return res;
+}</code></pre>
+        </div>
       </div>
     </section>
 
@@ -231,56 +365,383 @@
           <span class="state-pill">Action Required</span>
         </article>
       </div>
+    </section>
 
-      <div class="highlight-box">
-        <h4>🧮 Hybrid Scoring Formula</h4>
-        <p>When no direct threshold rule triggers immediately, the final decision blends deterministic engineering physics with unsupervised anomaly detection:</p>
-        <p style="font-family: 'Space Mono', monospace; font-size: 0.9rem; margin-top: 0.5rem; color: var(--green-primary);">
-          Final Anomaly Score = (Physics Anomaly Score &times; 0.40) + (Online Z-Score Anomaly &times; 0.60)
-        </p>
-        <p style="margin-top: 0.5rem;">Scores below 0.35 return <strong>Healthy</strong>, scores above 0.60 return <strong>System Anomaly</strong>, and intermediate values indicate uncertain transition states.</p>
+    <!-- ============= OLED DISPLAY SIMULATOR SECTION ============= -->
+    <section class="container section reveal">
+      <div class="section-head">
+        <div class="accent-line" aria-hidden="true"></div>
+        <p class="eyebrow">Device UI</p>
+        <h2>OLED Display Simulator (128&times;64 SSD1306)</h2>
+        <p class="muted">Live visualization of what renders on the hardware during boot, calibration, and runtime inspection.</p>
+      </div>
+
+      <div class="oled-showcase">
+        <article class="oled-sim">
+          <p class="oled-title">Boot Animation</p>
+          <div class="oled-screen">
+            <div style="padding:4px;">
+              <p style="margin:0;font-size:8px;border-bottom:1px solid #fff;padding-bottom:2px;">INDUSTRIAL DOCTOR v3</p>
+              <p style="margin:2px 0;font-size:7px;">BOOT SEQUENCE<span id="dots-warmup">...</span></p>
+              <canvas id="heartbeat" width="120" height="16" style="display:block;margin:4px 0;" aria-label="Heartbeat ECG animation"></canvas>
+              <p style="margin:2px 0;font-size:6px;">I2S Mic &amp; OLED Ready</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="oled-sim">
+          <p class="oled-title">Calibration Wizard</p>
+          <div class="oled-screen">
+            <div style="padding:4px;">
+              <p style="margin:0;font-size:8px;border-bottom:1px solid #fff;padding-bottom:2px;display:flex;justify-content:space-between;">
+                <span>CALIBRATION</span>
+                <span>[ 150/150 ]</span>
+              </p>
+              <p style="margin:2px 0;font-size:7px;">HEALTHY BASELINE</p>
+              <div style="margin:3px 0;border:1px solid #fff;height:6px;position:relative;">
+                <div id="progress-bar" style="height:100%;width:75%;background:#fff;"></div>
+              </div>
+              <p style="margin:2px 0;font-size:6px;" id="progress-text">75% Welford variance</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="oled-sim">
+          <p class="oled-title">Dashboard Status</p>
+          <div class="oled-screen">
+            <div style="padding:4px;">
+              <p style="margin:0;font-size:8px;border-bottom:1px solid #fff;padding-bottom:2px;display:flex;justify-content:space-between;">
+                <span>LIVE DIAGNOSIS</span>
+                <span>CORE 1</span>
+              </p>
+              <p style="margin:4px 0 2px 0;font-size:10px;font-weight:bold;">MOTOR HEALTHY</p>
+              <p style="margin:2px 0;font-size:7px;">Confidence: 94%</p>
+              <p style="margin:2px 0;font-size:6px;color:#00d9ff;">Anomaly Z: 0.14</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="oled-sim">
+          <p class="oled-title">Feature Readout</p>
+          <div class="oled-screen">
+            <div style="padding:4px;font-size:6px;">
+              <p style="margin:0;font-size:8px;border-bottom:1px solid #fff;padding-bottom:2px;">
+                FEATURES <span id="page-num">1</span>/4
+              </p>
+              <p style="margin:3px 0;">RMS ENERGY</p>
+              <p style="margin:0;font-size:10px;font-weight:bold;" id="rms-val">245.8</p>
+              <p style="margin:3px 0;">PEAK FREQ</p>
+              <p style="margin:0;font-size:10px;font-weight:bold;" id="hz-val">1247 Hz</p>
+            </div>
+          </div>
+        </article>
       </div>
     </section>
 
-    <!-- ============= CODE IMPLEMENTATION SECTION ============= -->
+    <!-- ============= ANALYTICS CHARTS SECTION ============= -->
+    <section class="container section reveal">
+      <div class="section-head">
+        <div class="accent-line" aria-hidden="true"></div>
+        <p class="eyebrow">Telemetry Analytics</p>
+        <h2>Real-Time Feature &amp; Anomaly Distribution</h2>
+        <p class="muted">Visualizing statistical feature breakdown and operational confidence over a monitoring cycle.</p>
+      </div>
+
+      <div class="charts-grid">
+        <article class="chart-card">
+          <h3>📊 Diagnostic State Distribution</h3>
+          <p class="muted" style="margin-bottom: 1rem; font-size: 0.9rem;">Proportion of states observed across test motor runs.</p>
+          <canvas id="statusChart" aria-label="Diagnostic state distribution chart"></canvas>
+        </article>
+
+        <article class="chart-card">
+          <h3>📈 Anomaly Score vs Confidence Trend</h3>
+          <p class="muted" style="margin-bottom: 1rem; font-size: 0.9rem;">Tracking Z-score anomaly progression over time.</p>
+          <canvas id="trendChart" aria-label="Anomaly score and confidence trend chart"></canvas>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="container footer">
+    <p class="footer-title">Industrial Doctor v3.0 Firmware</p>
+    <p class="footer-note">ESP32-S3 • FreeRTOS Multi-Core • INMP441 I2S • Welford Anomaly Engine • SSD1306 OLED</p>
+    <p class="footer-note" style="margin-top: 1rem; font-size: 0.85rem; opacity: 0.8;">Built by Mohamed Ishauq • Open-Source Embedded Systems Architecture.</p>
+  </footer>
+</body>
+</html><!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Industrial Doctor v3.0 - Advanced ESP32-S3 FreeRTOS multi-core acoustic predictive maintenance firmware and embedded architecture showcase.">
+  <title>Industrial Doctor v3.0 | Embedded Predictive Maintenance Architecture</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Newsreader:ital,wght@0,400;0,500;0,700;1,400;1,500&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/aos@next/dist/aos.css">
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script defer src="https://unpkg.com/aos@next/dist/aos.js"></script>
+  <script defer src="script.js"></script>
+</head>
+<body>
+  <div class="bg-orb orb-a" aria-hidden="true"></div>
+  <div class="bg-orb orb-b" aria-hidden="true"></div>
+  <div class="bg-orb orb-c" aria-hidden="true"></div>
+  <div class="bg-grid" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">iD</span>
+      <div>
+        <p class="brand-name">Industrial Doctor</p>
+        <p class="brand-sub">v3.0 Firmware</p>
+      </div>
+    </div>
+
+    <nav aria-label="Primary Navigation">
+      <ul class="nav-list">
+        <li><a href="#pipeline">Pipeline</a></li>
+        <li><a href="#architecture">Architecture</a></li>
+        <li><a href="#signals">Signal Analysis</a></li>
+        <li><a href="#code">Code Snippets</a></li>
+        <li><a href="#voter">Fault Voting</a></li>
+        <li><a href="https://github.com/mdishauq/INDUSTRIAL-DOCTOR" target="_blank" rel="noopener noreferrer" class="github-link">GitHub ↗</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <!-- ============= HERO SECTION ============= -->
+    <section class="hero container reveal">
+      <div class="hero-copy">
+        <div class="accent-line" aria-hidden="true"></div>
+        <p class="eyebrow">ESP32-S3 FreeRTOS Multi-Core Firmware</p>
+        <h1>Industrial <span>Doctor v3.0</span></h1>
+        <p class="hero-tagline">Real-time acoustic machine health monitoring on the edge.</p>
+        <p class="hero-text">
+          A high-performance embedded systems project built around an ESP32-S3 microcontroller and an INMP441 I2S digital microphone.
+          Utilizes FreeRTOS task partitioning across dual cores, online statistical feature extraction, Welford's variance-based Z-score anomaly engine,
+          and deterministic physics rule validation to diagnose motor health live on a 128&times;64 OLED display.
+        </p>
+
+        <div class="hero-chips">
+          <span>⚡ FreeRTOS Dual-Core</span>
+          <span>🎙️ INMP441 I2S DMA</span>
+          <span>📊 8-Feature Extraction</span>
+          <span>🧠 Hybrid Z-Score Voting</span>
+          <span>📺 SSD1306 OLED UI</span>
+        </div>
+      </div>
+
+      <div class="hero-panel" role="region" aria-label="Live machine health telemetry status panel">
+        <p class="panel-kicker">Live Telemetry &amp; State</p>
+        <h2 id="hero-state">HEALTHY</h2>
+        <p id="hero-note">Motor RMS stable, anomaly Z-score within normal bounds.</p>
+
+        <div class="meter-wrap">
+          <div class="meter" role="progressbar" aria-valuenow="91" aria-valuemin="0" aria-valuemax="100">
+            <div class="meter-fill" id="meter-fill"></div>
+          </div>
+          <p class="meter-label">Confidence: <span id="meter-value">91%</span> | Anomaly Z: <span id="anomaly-score-disp">0.12</span></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============= EXECUTION PIPELINE SECTION ============= -->
+    <section id="pipeline" class="container section reveal">
+      <div class="section-head">
+        <div class="accent-line" aria-hidden="true"></div>
+        <p class="eyebrow">Execution Pipeline</p>
+        <h2>How the Firmware Operates</h2>
+        <p class="muted">From microphone sample acquisition to multi-core FreeRTOS task coordination and OLED UI updates.</p>
+      </div>
+
+      <div class="journey">
+        <article class="step">
+          <span>01. ACQUIRE</span>
+          <h3>I2S DMA Sampling</h3>
+          <p>INMP441 digital microphone captures audio at 16,000 Hz into 1,024-sample frames via DMA on Core 0.</p>
+        </article>
+        <div class="arrow" aria-hidden="true">→</div>
+        <article class="step">
+          <span>02. EXTRACT</span>
+          <h3>8 Core Features</h3>
+          <p>Calculates RMS, RMS Stability, Goertzel Peak Freq, Kurtosis, Crest Factor, Spectral Centroid, ZCR, and Envelope RMS.</p>
+        </article>
+        <div class="arrow" aria-hidden="true">→</div>
+        <article class="step">
+          <span>03. PROCESS</span>
+          <h3>Hybrid Voting</h3>
+          <p>TaskProcess on Core 1 evaluates online Z-score anomaly engine combined with deterministic physics rule checks.</p>
+        </article>
+        <div class="arrow" aria-hidden="true">→</div>
+        <article class="step">
+          <span>04. DISPLAY</span>
+          <h3>OLED Dashboard</h3>
+          <p>TaskUI renders real-time health status, confidence score, and live feature inspection screens via joystick.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============= CORE FIRMWARE MODULES SECTION ============= -->
+    <section id="architecture" class="container section reveal">
+      <div class="section-head">
+        <div class="accent-line" aria-hidden="true"></div>
+        <p class="eyebrow">Source Code Modules (`src/` &amp; `include/`)</p>
+        <h2>Core Firmware Architecture Breakdown</h2>
+        <p class="muted">Detailed technical breakdown of the 5 core C++ modules orchestrating the embedded system.</p>
+      </div>
+
+      <div class="card-grid three">
+        <article class="info-card">
+          <h3>⚡ main.cpp</h3>
+          <p><strong>Orchestrator &amp; RTOS Controller:</strong> Initializes Serial, I2C OLED (0x3C/0x3D), plays boot animation, runs two-stage calibration (Ambient &amp; Healthy Motor), creates queues/mutexes, and spawns <code>TaskAcquire</code> (Core 0), <code>TaskProcess</code> (Core 1), and <code>TaskUI</code> (Core 1).</p>
+        </article>
+
+        <article class="info-card">
+          <h3>🎙️ feature_extraction.cpp</h3>
+          <p><strong>Signal Processing Engine:</strong> Configures I2S driver pins (WS:13, SD:11, SCK:12) at 16kHz. Processes 1,024 sample frames with normalization, Hann windowing, Goertzel frequency scanning (20Hz–7.5kHz), and time-domain statistical moments.</p>
+        </article>
+
+        <article class="info-card">
+          <h3>🧠 anomaly_engine.cpp</h3>
+          <p><strong>Statistical Baseline:</strong> Implements Welford’s online mean and variance algorithm during 150-sample healthy calibration. Calculates real-time Z-scores across all 8 features and maps average deviation to a 0.0–1.0 anomaly probability.</p>
+        </article>
+
+        <article class="info-card">
+          <h3>⚖️ diagnosis_voter.cpp</h3>
+          <p><strong>Hybrid Decision Ensemble:</strong> Evaluates strict fault priority rules (Silent/Off → Ambient Noise → Bearing Impact via Kurtosis/Crest → Friction via Centroid/ZCR → Unbalance via RMS Stability), blending 40% physics rules with 60% anomaly score.</p>
+        </article>
+
+        <article class="info-card">
+          <h3>🖥️ inspection_menu.cpp</h3>
+          <p><strong>Interactive OLED UI:</strong> Handles joystick ADC input (&gt;3000 UP, &lt;1000 DOWN) with 250ms debouncing. Manages screen navigation between the primary diagnosis dashboard and the scrolling 8-feature live telemetry view.</p>
+        </article>
+
+        <article class="info-card">
+          <h3>🚀 boot_animation.h</h3>
+          <p><strong>Startup Sequence:</strong> Renders vector-based logo graphics, bezier swooshes, and EKG heartbeat waveforms on the SSD1306 display during device initialization.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============= SIGNAL ANALYSIS & GRAPHICAL PLOTS SECTION ============= -->
+    <section id="signals" class="container section reveal">
+      <div class="section-head">
+        <div class="accent-line" aria-hidden="true"></div>
+        <p class="eyebrow">Signal Analysis &amp; Data Capture</p>
+        <h2>Acoustic Waveform Plots &amp; Feature Extraction</h2>
+        <p class="muted">Real capture plots generated during signal analysis for ambient noise, healthy operation, and fault states.</p>
+      </div>
+
+      <div class="photo-grid">
+        <figure class="photo-card">
+          <img src="assets/chart_ambient.jpg" alt="Ambient noise signal analysis graph">
+          <figcaption><strong>Ambient Noise Waveform:</strong> Exhibits chaotic, full-range frequency fluctuations with no organized mechanical source.</figcaption>
+        </figure>
+
+        <figure class="photo-card">
+          <img src="assets/chart_healthy.jpg" alt="Healthy motor operation signal analysis graph">
+          <figcaption><strong>Healthy Motor Waveform:</strong> Stable narrow-band frequency response with smooth, gradual RMS and centroid transitions.</figcaption>
+        </figure>
+
+        <figure class="photo-card">
+          <img src="assets/chart_fault.jpg" alt="Fault condition signal analysis graph">
+          <figcaption><strong>Fault Condition Waveform:</strong> Clear isolated impulse spikes and high kurtosis events signaling developing bearing or mechanical stress.</figcaption>
+        </figure>
+
+        <figure class="photo-card">
+          <img src="assets/chart_healthy (1).jpg" alt="Secondary healthy motor baseline verification run">
+          <figcaption><strong>Baseline Verification (Run 1):</strong> Ensuring repeatability and low variance across calibration sample windows.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ============= EXTENSIVE CODE SNIPPETS SECTION ============= -->
     <section id="code" class="container section reveal">
       <div class="section-head">
         <div class="accent-line" aria-hidden="true"></div>
-        <p class="eyebrow">Firmware Snippets</p>
-        <h2>Core C++ Implementation Highlights</h2>
-        <p class="muted">Excerpts from FreeRTOS task creation and the Welford online anomaly calculation engine.</p>
+        <p class="eyebrow">Firmware Source Code</p>
+        <h2>Comprehensive C++ Implementation Snippets</h2>
+        <p class="muted">Explore the core logic driving multi-core task scheduling, feature extraction, anomaly scoring, and fault voting.</p>
       </div>
 
-      <div class="code-showcase">
-        <div class="code-block" data-aos="fade-right">
+      <div class="code-showcase" style="grid-template-columns: 1fr;">
+        <!-- Snippet 1: main.cpp -->
+        <div class="code-block" data-aos="fade-up">
           <div class="code-header">
             <span class="code-lang">cpp</span>
-            <span class="code-title">src/main.cpp - FreeRTOS Multi-Core Task Spawning</span>
+            <span class="code-title">src/main.cpp - FreeRTOS Multi-Core Task Spawning &amp; Calibration</span>
           </div>
-          <pre><code class="language-cpp">// Create FreeRTOS synchronization primitives
-xAudioQueue = xQueueCreate(3, sizeof(MotorFeatures));
-xDataMutex = xSemaphoreCreateMutex();
+          <pre><code class="language-cpp">void setup() {
+    Serial.begin(115200);
+    Wire.begin();
+    
+    // OLED Detection &amp; Boot Animation
+    if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+        for(;;); // Halt if OLED missing
+    }
+    oled_boot_animation(display, true);
 
-// TaskAcquire pinned to Core 0 (Microphone DMA reader)
-xTaskCreatePinnedToCore(
-    TaskAcquire, "AcquireTask", 4096, NULL, 3, &amp;TaskAcquireHandle, 0
-);
+    // Initialize I2S Microphone &amp; Calibration Wizard
+    extractor.begin();
+    runAmbientCalibration();
+    runHealthyMotorCalibration();
 
-// TaskProcess pinned to Core 1 (Feature analysis &amp; anomaly scoring)
-xTaskCreatePinnedToCore(
-    TaskProcess, "ProcessTask", 4096, NULL, 2, &amp;TaskProcessHandle, 1
-);
+    // Create FreeRTOS Queues &amp; Mutexes
+    xAudioQueue = xQueueCreate(3, sizeof(MotorFeatures));
+    xDataMutex = xSemaphoreCreateMutex();
 
-// TaskUI pinned to Core 1 (Joystick &amp; SSD1306 OLED rendering)
-xTaskCreatePinnedToCore(
-    TaskUI, "UITask", 4096, NULL, 1, &amp;TaskUIHandle, 1
-);</code></pre>
+    // Pin Tasks to Cores
+    xTaskCreatePinnedToCore(TaskAcquire, "AcquireTask", 4096, NULL, 3, &amp;TaskAcquireHandle, 0);
+    xTaskCreatePinnedToCore(TaskProcess, "ProcessTask", 4096, NULL, 2, &amp;TaskProcessHandle, 1);
+    xTaskCreatePinnedToCore(TaskUI, "UITask", 4096, NULL, 1, &amp;TaskUIHandle, 1);
+}</code></pre>
         </div>
 
-        <div class="code-block" data-aos="fade-left" data-aos-delay="100">
+        <!-- Snippet 2: feature_extraction.cpp -->
+        <div class="code-block" data-aos="fade-up">
           <div class="code-header">
             <span class="code-lang">cpp</span>
-            <span class="code-title">src/anomaly_engine.cpp - Welford Online Variance</span>
+            <span class="code-title">src/feature_extraction.cpp - I2S DMA Frame Read &amp; RMS / Kurtosis Calculation</span>
+          </div>
+          <pre><code class="language-cpp">MotorFeatures FeatureExtractor::getNextFeatures() {
+    size_t bytesRead = 0;
+    i2s_read(I2S_NUM_0, dmaBuffer, sizeof(dmaBuffer), &amp;bytesRead, portMAX_DELAY);
+    int numSamples = bytesRead / sizeof(int32_t);
+
+    float sumSq = 0.0f;
+    float m4 = 0.0f;
+    float maxAbs = 0.0f;
+
+    for (int i = 0; i &lt; numSamples; i++) {
+        float sample = (float)dmaBuffer[i] / 2147483648.0f; // Normalize 32-bit
+        sumSq += sample * sample;
+        float absVal = fabsf(sample);
+        if (absVal &gt; maxAbs) maxAbs = absVal;
+    }
+
+    float rms = sqrtf(sumSq / numSamples);
+    float variance = sumSq / numSamples;
+    float kurtosis = (variance &gt; 0.0f) ? (m4 / numSamples) / (variance * variance) : 0.0f;
+
+    MotorFeatures f;
+    f.rms = rms;
+    f.crestFactor = (rms &gt; 0.0f) ? (maxAbs / rms) : 0.0f;
+    f.kurtosis = kurtosis;
+    return f;
+}</code></pre>
+        </div>
+
+        <!-- Snippet 3: anomaly_engine.cpp -->
+        <div class="code-block" data-aos="fade-up">
+          <div class="code-header">
+            <span class="code-lang">cpp</span>
+            <span class="code-title">src/anomaly_engine.cpp - Welford's Online Variance &amp; Z-Score Engine</span>
           </div>
           <pre><code class="language-cpp">void AnomalyEngine::addSample(const float* features) {
     _sampleCount++;
@@ -305,6 +766,546 @@ float AnomalyEngine::score(const float* features) {
     return fminf(fmaxf((avgZ - 2.0f) / 3.0f, 0.0f), 1.0f);
 }</code></pre>
         </div>
+
+        <!-- Snippet 4: diagnosis_voter.cpp -->
+        <div class="code-block" data-aos="fade-up">
+          <div class="code-header">
+            <span class="code-lang">cpp</span>
+            <span class="code-title">src/diagnosis_voter.cpp - Hybrid Physics &amp; Anomaly Ensemble Voting</span>
+          </div>
+          <pre><code class="language-cpp">DiagnosisResult DiagnosisVoter::voteEnsemble(const float* features, float anomalyScore) {
+    float rms = features[0];
+    float crest = features[4];
+    float kurtosis = features[3];
+
+    DiagnosisResult res;
+
+    // 1. Priority Fault Checks (Physics Rules)
+    if (crest &gt; 4.10f || kurtosis &gt; 3.40f) {
+        res.status = STATUS_FAULTY;
+        res.faultType = FAULT_BEARING;
+        res.label = "Bearing Damage";
+        res.confidence = 0.92f;
+        return res;
+    }
+
+    // 2. Hybrid Ensemble Scoring
+    float physicsScore = (rms &gt; ambientThreshold) ? 0.1f : 0.8f;
+    float finalAnomaly = (physicsScore * 0.40f) + (anomalyScore * 0.60f);
+
+    if (finalAnomaly &lt;= 0.35f) {
+        res.status = STATUS_HEALTHY;
+        res.label = "Motor Healthy";
+        res.confidence = 1.0f - finalAnomaly;
+    } else {
+        res.status = STATUS_FAULTY;
+        res.label = "System Anomaly";
+        res.confidence = finalAnomaly;
+    }
+    return res;
+}</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============= FAULT VOTING & DIAGNOSIS LOGIC SECTION ============= -->
+    <section id="voter" class="container section reveal">
+      <div class="section-head">
+        <div class="accent-line" aria-hidden="true"></div>
+        <p class="eyebrow">Decision Logic</p>
+        <h2>Deterministic Fault Voting &amp; Hybrid Scoring</h2>
+        <p class="muted">How physics engineering rules combine with statistical machine learning models.</p>
+      </div>
+
+      <div class="card-grid three">
+        <article class="state-card ambient">
+          <h3>🔇 Ambient State</h3>
+          <p>Triggered when RMS is below calibrated ambient guardrail (<code>averageAmbientRms * 1.30</code>, capped between 20 and 120). Treats environment as idle.</p>
+          <span class="state-pill">Standby</span>
+        </article>
+
+        <article class="state-card healthy">
+          <h3>✅ Healthy State</h3>
+          <p>Triggered when direct fault rules pass and combined anomaly score is &le; 0.35. Physics rules and healthy baseline agree operation is normal.</p>
+          <span class="state-pill">Normal Operation</span>
+        </article>
+
+        <article class="state-card fault">
+          <h3>⚠️ Fault Classification</h3>
+          <p>Identifies specific mechanical failure modes: <strong>Bearing Damage</strong> (Crest &gt; 4.1 or Kurtosis &gt; 3.4), <strong>Friction</strong> (Centroid &gt; 1400Hz &amp; ZCR &gt; 0.38), or <strong>Unbalance</strong> (RMS Stability / RMS &gt; 0.12).</p>
+          <span class="state-pill">Action Required</span>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============= OLED DISPLAY SIMULATOR SECTION ============= -->
+    <section class="container section reveal">
+      <div class="section-head">
+        <div class="accent-line" aria-hidden="true"></div>
+        <p class="eyebrow">Device UI</p>
+        <h2>OLED Display Simulator (128&times;64 SSD1306)</h2>
+        <p class="muted">Live visualization of what renders on the hardware during boot, calibration, and runtime inspection.</p>
+      </div>
+
+      <div class="oled-showcase">
+        <article class="oled-sim">
+          <p class="oled-title">Boot Animation</p>
+          <div class="oled-screen">
+            <div style="padding:4px;">
+              <p style="margin:0;font-size:8px;border-bottom:1px solid #fff;padding-bottom:2px;">INDUSTRIAL DOCTOR v3</p>
+              <p style="margin:2px 0;font-size:7px;">BOOT SEQUENCE<span id="dots-warmup">...</span></p>
+              <canvas id="heartbeat" width="120" height="16" style="display:block;margin:4px 0;" aria-label="Heartbeat ECG animation"></canvas>
+              <p style="margin:2px 0;font-size:6px;">I2S Mic &amp; OLED Ready</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="oled-sim">
+          <p class="oled-title">Calibration Wizard</p>
+          <div class="oled-screen">
+            <div style="padding:4px;">
+              <p style="margin:0;font-size:8px;border-bottom:1px solid #fff;padding-bottom:2px;display:flex;justify-content:space-between;">
+                <span>CALIBRATION</span>
+                <span>[ 150/150 ]</span>
+              </p>
+              <p style="margin:2px 0;font-size:7px;">HEALTHY BASELINE</p>
+              <div style="margin:3px 0;border:1px solid #fff;height:6px;position:relative;">
+                <div id="progress-bar" style="height:100%;width:75%;background:#fff;"></div>
+              </div>
+              <p style="margin:2px 0;font-size:6px;" id="progress-text">75% Welford variance</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="oled-sim">
+          <p class="oled-title">Dashboard Status</p>
+          <div class="oled-screen">
+            <div style="padding:4px;">
+              <p style="margin:0;font-size:8px;border-bottom:1px solid #fff;padding-bottom:2px;display:flex;justify-content:space-between;">
+                <span>LIVE DIAGNOSIS</span>
+                <span>CORE 1</span>
+              </p>
+              <p style="margin:4px 0 2px 0;font-size:10px;font-weight:bold;">MOTOR HEALTHY</p>
+              <p style="margin:2px 0;font-size:7px;">Confidence: 94%</p>
+              <p style="margin:2px 0;font-size:6px;color:#00d9ff;">Anomaly Z: 0.14</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="oled-sim">
+          <p class="oled-title">Feature Readout</p>
+          <div class="oled-screen">
+            <div style="padding:4px;font-size:6px;">
+              <p style="margin:0;font-size:8px;border-bottom:1px solid #fff;padding-bottom:2px;">
+                FEATURES <span id="page-num">1</span>/4
+              </p>
+              <p style="margin:3px 0;">RMS ENERGY</p>
+              <p style="margin:0;font-size:10px;font-weight:bold;" id="rms-val">245.8</p>
+              <p style="margin:3px 0;">PEAK FREQ</p>
+              <p style="margin:0;font-size:10px;font-weight:bold;" id="hz-val">1247 Hz</p>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============= ANALYTICS CHARTS SECTION ============= -->
+    <section class="container section reveal">
+      <div class="section-head">
+        <div class="accent-line" aria-hidden="true"></div>
+        <p class="eyebrow">Telemetry Analytics</p>
+        <h2>Real-Time Feature &amp; Anomaly Distribution</h2>
+        <p class="muted">Visualizing statistical feature breakdown and operational confidence over a monitoring cycle.</p>
+      </div>
+
+      <div class="charts-grid">
+        <article class="chart-card">
+          <h3>📊 Diagnostic State Distribution</h3>
+          <p class="muted" style="margin-bottom: 1rem; font-size: 0.9rem;">Proportion of states observed across test motor runs.</p>
+          <canvas id="statusChart" aria-label="Diagnostic state distribution chart"></canvas>
+        </article>
+
+        <article class="chart-card">
+          <h3>📈 Anomaly Score vs Confidence Trend</h3>
+          <p class="muted" style="margin-bottom: 1rem; font-size: 0.9rem;">Tracking Z-score anomaly progression over time.</p>
+          <canvas id="trendChart" aria-label="Anomaly score and confidence trend chart"></canvas>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="container footer">
+    <p class="footer-title">Industrial Doctor v3.0 Firmware</p>
+    <p class="footer-note">ESP32-S3 • FreeRTOS Multi-Core • INMP441 I2S • Welford Anomaly Engine • SSD1306 OLED</p>
+    <p class="footer-note" style="margin-top: 1rem; font-size: 0.85rem; opacity: 0.8;">Built by Mohamed Ishauq • Open-Source Embedded Systems Architecture.</p>
+  </footer>
+</body>
+</html><!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Industrial Doctor v3.0 - Advanced ESP32-S3 FreeRTOS multi-core acoustic predictive maintenance firmware and embedded architecture showcase.">
+  <title>Industrial Doctor v3.0 | Embedded Predictive Maintenance Architecture</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Newsreader:ital,wght@0,400;0,500;0,700;1,400;1,500&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/aos@next/dist/aos.css">
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script defer src="https://unpkg.com/aos@next/dist/aos.js"></script>
+  <script defer src="script.js"></script>
+</head>
+<body>
+  <div class="bg-orb orb-a" aria-hidden="true"></div>
+  <div class="bg-orb orb-b" aria-hidden="true"></div>
+  <div class="bg-orb orb-c" aria-hidden="true"></div>
+  <div class="bg-grid" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">iD</span>
+      <div>
+        <p class="brand-name">Industrial Doctor</p>
+        <p class="brand-sub">v3.0 Firmware</p>
+      </div>
+    </div>
+
+    <nav aria-label="Primary Navigation">
+      <ul class="nav-list">
+        <li><a href="#pipeline">Pipeline</a></li>
+        <li><a href="#architecture">Architecture</a></li>
+        <li><a href="#signals">Signal Analysis</a></li>
+        <li><a href="#code">Code Snippets</a></li>
+        <li><a href="#voter">Fault Voting</a></li>
+        <li><a href="https://github.com/mdishauq/INDUSTRIAL-DOCTOR" target="_blank" rel="noopener noreferrer" class="github-link">GitHub ↗</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <!-- ============= HERO SECTION ============= -->
+    <section class="hero container reveal">
+      <div class="hero-copy">
+        <div class="accent-line" aria-hidden="true"></div>
+        <p class="eyebrow">ESP32-S3 FreeRTOS Multi-Core Firmware</p>
+        <h1>Industrial <span>Doctor v3.0</span></h1>
+        <p class="hero-tagline">Real-time acoustic machine health monitoring on the edge.</p>
+        <p class="hero-text">
+          A high-performance embedded systems project built around an ESP32-S3 microcontroller and an INMP441 I2S digital microphone.
+          Utilizes FreeRTOS task partitioning across dual cores, online statistical feature extraction, Welford's variance-based Z-score anomaly engine,
+          and deterministic physics rule validation to diagnose motor health live on a 128&times;64 OLED display.
+        </p>
+
+        <div class="hero-chips">
+          <span>⚡ FreeRTOS Dual-Core</span>
+          <span>🎙️ INMP441 I2S DMA</span>
+          <span>📊 8-Feature Extraction</span>
+          <span>🧠 Hybrid Z-Score Voting</span>
+          <span>📺 SSD1306 OLED UI</span>
+        </div>
+      </div>
+
+      <div class="hero-panel" role="region" aria-label="Live machine health telemetry status panel">
+        <p class="panel-kicker">Live Telemetry &amp; State</p>
+        <h2 id="hero-state">HEALTHY</h2>
+        <p id="hero-note">Motor RMS stable, anomaly Z-score within normal bounds.</p>
+
+        <div class="meter-wrap">
+          <div class="meter" role="progressbar" aria-valuenow="91" aria-valuemin="0" aria-valuemax="100">
+            <div class="meter-fill" id="meter-fill"></div>
+          </div>
+          <p class="meter-label">Confidence: <span id="meter-value">91%</span> | Anomaly Z: <span id="anomaly-score-disp">0.12</span></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============= EXECUTION PIPELINE SECTION ============= -->
+    <section id="pipeline" class="container section reveal">
+      <div class="section-head">
+        <div class="accent-line" aria-hidden="true"></div>
+        <p class="eyebrow">Execution Pipeline</p>
+        <h2>How the Firmware Operates</h2>
+        <p class="muted">From microphone sample acquisition to multi-core FreeRTOS task coordination and OLED UI updates.</p>
+      </div>
+
+      <div class="journey">
+        <article class="step">
+          <span>01. ACQUIRE</span>
+          <h3>I2S DMA Sampling</h3>
+          <p>INMP441 digital microphone captures audio at 16,000 Hz into 1,024-sample frames via DMA on Core 0.</p>
+        </article>
+        <div class="arrow" aria-hidden="true">→</div>
+        <article class="step">
+          <span>02. EXTRACT</span>
+          <h3>8 Core Features</h3>
+          <p>Calculates RMS, RMS Stability, Goertzel Peak Freq, Kurtosis, Crest Factor, Spectral Centroid, ZCR, and Envelope RMS.</p>
+        </article>
+        <div class="arrow" aria-hidden="true">→</div>
+        <article class="step">
+          <span>03. PROCESS</span>
+          <h3>Hybrid Voting</h3>
+          <p>TaskProcess on Core 1 evaluates online Z-score anomaly engine combined with deterministic physics rule checks.</p>
+        </article>
+        <div class="arrow" aria-hidden="true">→</div>
+        <article class="step">
+          <span>04. DISPLAY</span>
+          <h3>OLED Dashboard</h3>
+          <p>TaskUI renders real-time health status, confidence score, and live feature inspection screens via joystick.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============= CORE FIRMWARE MODULES SECTION ============= -->
+    <section id="architecture" class="container section reveal">
+      <div class="section-head">
+        <div class="accent-line" aria-hidden="true"></div>
+        <p class="eyebrow">Source Code Modules (`src/` &amp; `include/`)</p>
+        <h2>Core Firmware Architecture Breakdown</h2>
+        <p class="muted">Detailed technical breakdown of the 5 core C++ modules orchestrating the embedded system.</p>
+      </div>
+
+      <div class="card-grid three">
+        <article class="info-card">
+          <h3>⚡ main.cpp</h3>
+          <p><strong>Orchestrator &amp; RTOS Controller:</strong> Initializes Serial, I2C OLED (0x3C/0x3D), plays boot animation, runs two-stage calibration (Ambient &amp; Healthy Motor), creates queues/mutexes, and spawns <code>TaskAcquire</code> (Core 0), <code>TaskProcess</code> (Core 1), and <code>TaskUI</code> (Core 1).</p>
+        </article>
+
+        <article class="info-card">
+          <h3>🎙️ feature_extraction.cpp</h3>
+          <p><strong>Signal Processing Engine:</strong> Configures I2S driver pins (WS:13, SD:11, SCK:12) at 16kHz. Processes 1,024 sample frames with normalization, Hann windowing, Goertzel frequency scanning (20Hz–7.5kHz), and time-domain statistical moments.</p>
+        </article>
+
+        <article class="info-card">
+          <h3>🧠 anomaly_engine.cpp</h3>
+          <p><strong>Statistical Baseline:</strong> Implements Welford’s online mean and variance algorithm during 150-sample healthy calibration. Calculates real-time Z-scores across all 8 features and maps average deviation to a 0.0–1.0 anomaly probability.</p>
+        </article>
+
+        <article class="info-card">
+          <h3>⚖️ diagnosis_voter.cpp</h3>
+          <p><strong>Hybrid Decision Ensemble:</strong> Evaluates strict fault priority rules (Silent/Off → Ambient Noise → Bearing Impact via Kurtosis/Crest → Friction via Centroid/ZCR → Unbalance via RMS Stability), blending 40% physics rules with 60% anomaly score.</p>
+        </article>
+
+        <article class="info-card">
+          <h3>🖥️ inspection_menu.cpp</h3>
+          <p><strong>Interactive OLED UI:</strong> Handles joystick ADC input (&gt;3000 UP, &lt;1000 DOWN) with 250ms debouncing. Manages screen navigation between the primary diagnosis dashboard and the scrolling 8-feature live telemetry view.</p>
+        </article>
+
+        <article class="info-card">
+          <h3>🚀 boot_animation.h</h3>
+          <p><strong>Startup Sequence:</strong> Renders vector-based logo graphics, bezier swooshes, and EKG heartbeat waveforms on the SSD1306 display during device initialization.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============= SIGNAL ANALYSIS & GRAPHICAL PLOTS SECTION ============= -->
+    <section id="signals" class="container section reveal">
+      <div class="section-head">
+        <div class="accent-line" aria-hidden="true"></div>
+        <p class="eyebrow">Signal Analysis &amp; Data Capture</p>
+        <h2>Acoustic Waveform Plots &amp; Feature Extraction</h2>
+        <p class="muted">Real capture plots generated during signal analysis for ambient noise, healthy operation, and fault states.</p>
+      </div>
+
+      <div class="photo-grid">
+        <figure class="photo-card">
+          <img src="assets/chart_ambient.jpg" alt="Ambient noise signal analysis graph">
+          <figcaption><strong>Ambient Noise Waveform:</strong> Exhibits chaotic, full-range frequency fluctuations with no organized mechanical source.</figcaption>
+        </figure>
+
+        <figure class="photo-card">
+          <img src="assets/chart_healthy.jpg" alt="Healthy motor operation signal analysis graph">
+          <figcaption><strong>Healthy Motor Waveform:</strong> Stable narrow-band frequency response with smooth, gradual RMS and centroid transitions.</figcaption>
+        </figure>
+
+        <figure class="photo-card">
+          <img src="assets/chart_fault.jpg" alt="Fault condition signal analysis graph">
+          <figcaption><strong>Fault Condition Waveform:</strong> Clear isolated impulse spikes and high kurtosis events signaling developing bearing or mechanical stress.</figcaption>
+        </figure>
+
+        <figure class="photo-card">
+          <img src="assets/chart_healthy (1).jpg" alt="Secondary healthy motor baseline verification run">
+          <figcaption><strong>Baseline Verification (Run 1):</strong> Ensuring repeatability and low variance across calibration sample windows.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ============= EXTENSIVE CODE SNIPPETS SECTION ============= -->
+    <section id="code" class="container section reveal">
+      <div class="section-head">
+        <div class="accent-line" aria-hidden="true"></div>
+        <p class="eyebrow">Firmware Source Code</p>
+        <h2>Comprehensive C++ Implementation Snippets</h2>
+        <p class="muted">Explore the core logic driving multi-core task scheduling, feature extraction, anomaly scoring, and fault voting.</p>
+      </div>
+
+      <div class="code-showcase" style="grid-template-columns: 1fr;">
+        <!-- Snippet 1: main.cpp -->
+        <div class="code-block" data-aos="fade-up">
+          <div class="code-header">
+            <span class="code-lang">cpp</span>
+            <span class="code-title">src/main.cpp - FreeRTOS Multi-Core Task Spawning &amp; Calibration</span>
+          </div>
+          <pre><code class="language-cpp">void setup() {
+    Serial.begin(115200);
+    Wire.begin();
+    
+    // OLED Detection &amp; Boot Animation
+    if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+        for(;;); // Halt if OLED missing
+    }
+    oled_boot_animation(display, true);
+
+    // Initialize I2S Microphone &amp; Calibration Wizard
+    extractor.begin();
+    runAmbientCalibration();
+    runHealthyMotorCalibration();
+
+    // Create FreeRTOS Queues &amp; Mutexes
+    xAudioQueue = xQueueCreate(3, sizeof(MotorFeatures));
+    xDataMutex = xSemaphoreCreateMutex();
+
+    // Pin Tasks to Cores
+    xTaskCreatePinnedToCore(TaskAcquire, "AcquireTask", 4096, NULL, 3, &amp;TaskAcquireHandle, 0);
+    xTaskCreatePinnedToCore(TaskProcess, "ProcessTask", 4096, NULL, 2, &amp;TaskProcessHandle, 1);
+    xTaskCreatePinnedToCore(TaskUI, "UITask", 4096, NULL, 1, &amp;TaskUIHandle, 1);
+}</code></pre>
+        </div>
+
+        <!-- Snippet 2: feature_extraction.cpp -->
+        <div class="code-block" data-aos="fade-up">
+          <div class="code-header">
+            <span class="code-lang">cpp</span>
+            <span class="code-title">src/feature_extraction.cpp - I2S DMA Frame Read &amp; RMS / Kurtosis Calculation</span>
+          </div>
+          <pre><code class="language-cpp">MotorFeatures FeatureExtractor::getNextFeatures() {
+    size_t bytesRead = 0;
+    i2s_read(I2S_NUM_0, dmaBuffer, sizeof(dmaBuffer), &amp;bytesRead, portMAX_DELAY);
+    int numSamples = bytesRead / sizeof(int32_t);
+
+    float sumSq = 0.0f;
+    float m4 = 0.0f;
+    float maxAbs = 0.0f;
+
+    for (int i = 0; i &lt; numSamples; i++) {
+        float sample = (float)dmaBuffer[i] / 2147483648.0f; // Normalize 32-bit
+        sumSq += sample * sample;
+        float absVal = fabsf(sample);
+        if (absVal &gt; maxAbs) maxAbs = absVal;
+    }
+
+    float rms = sqrtf(sumSq / numSamples);
+    float variance = sumSq / numSamples;
+    float kurtosis = (variance &gt; 0.0f) ? (m4 / numSamples) / (variance * variance) : 0.0f;
+
+    MotorFeatures f;
+    f.rms = rms;
+    f.crestFactor = (rms &gt; 0.0f) ? (maxAbs / rms) : 0.0f;
+    f.kurtosis = kurtosis;
+    return f;
+}</code></pre>
+        </div>
+
+        <!-- Snippet 3: anomaly_engine.cpp -->
+        <div class="code-block" data-aos="fade-up">
+          <div class="code-header">
+            <span class="code-lang">cpp</span>
+            <span class="code-title">src/anomaly_engine.cpp - Welford's Online Variance &amp; Z-Score Engine</span>
+          </div>
+          <pre><code class="language-cpp">void AnomalyEngine::addSample(const float* features) {
+    _sampleCount++;
+    for (int i = 0; i &lt; 8; i++) {
+        float x = features[i];
+        float delta = x - _mean[i];
+        _mean[i] += delta / _sampleCount;
+        float delta2 = x - _mean[i];
+        _m2[i] += delta * delta2;
+    }
+}
+
+float AnomalyEngine::score(const float* features) {
+    float totalZ = 0.0f;
+    for (int i = 0; i &lt; 8; i++) {
+        float stdDev = sqrtf(_m2[i] / (_sampleCount - 1));
+        if (stdDev &lt; 1e-3f) stdDev = 1e-3f; // Epsilon guard
+        float z = fabsf(features[i] - _mean[i]) / stdDev;
+        totalZ += fminf(z, 6.0f); // Cap outlier impact
+    }
+    float avgZ = totalZ / 8.0f;
+    return fminf(fmaxf((avgZ - 2.0f) / 3.0f, 0.0f), 1.0f);
+}</code></pre>
+        </div>
+
+        <!-- Snippet 4: diagnosis_voter.cpp -->
+        <div class="code-block" data-aos="fade-up">
+          <div class="code-header">
+            <span class="code-lang">cpp</span>
+            <span class="code-title">src/diagnosis_voter.cpp - Hybrid Physics &amp; Anomaly Ensemble Voting</span>
+          </div>
+          <pre><code class="language-cpp">DiagnosisResult DiagnosisVoter::voteEnsemble(const float* features, float anomalyScore) {
+    float rms = features[0];
+    float crest = features[4];
+    float kurtosis = features[3];
+
+    DiagnosisResult res;
+
+    // 1. Priority Fault Checks (Physics Rules)
+    if (crest &gt; 4.10f || kurtosis &gt; 3.40f) {
+        res.status = STATUS_FAULTY;
+        res.faultType = FAULT_BEARING;
+        res.label = "Bearing Damage";
+        res.confidence = 0.92f;
+        return res;
+    }
+
+    // 2. Hybrid Ensemble Scoring
+    float physicsScore = (rms &gt; ambientThreshold) ? 0.1f : 0.8f;
+    float finalAnomaly = (physicsScore * 0.40f) + (anomalyScore * 0.60f);
+
+    if (finalAnomaly &lt;= 0.35f) {
+        res.status = STATUS_HEALTHY;
+        res.label = "Motor Healthy";
+        res.confidence = 1.0f - finalAnomaly;
+    } else {
+        res.status = STATUS_FAULTY;
+        res.label = "System Anomaly";
+        res.confidence = finalAnomaly;
+    }
+    return res;
+}</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============= FAULT VOTING & DIAGNOSIS LOGIC SECTION ============= -->
+    <section id="voter" class="container section reveal">
+      <div class="section-head">
+        <div class="accent-line" aria-hidden="true"></div>
+        <p class="eyebrow">Decision Logic</p>
+        <h2>Deterministic Fault Voting &amp; Hybrid Scoring</h2>
+        <p class="muted">How physics engineering rules combine with statistical machine learning models.</p>
+      </div>
+
+      <div class="card-grid three">
+        <article class="state-card ambient">
+          <h3>🔇 Ambient State</h3>
+          <p>Triggered when RMS is below calibrated ambient guardrail (<code>averageAmbientRms * 1.30</code>, capped between 20 and 120). Treats environment as idle.</p>
+          <span class="state-pill">Standby</span>
+        </article>
+
+        <article class="state-card healthy">
+          <h3>✅ Healthy State</h3>
+          <p>Triggered when direct fault rules pass and combined anomaly score is &le; 0.35. Physics rules and healthy baseline agree operation is normal.</p>
+          <span class="state-pill">Normal Operation</span>
+        </article>
+
+        <article class="state-card fault">
+          <h3>⚠️ Fault Classification</h3>
+          <p>Identifies specific mechanical failure modes: <strong>Bearing Damage</strong> (Crest &gt; 4.1 or Kurtosis &gt; 3.4), <strong>Friction</strong> (Centroid &gt; 1400Hz &amp; ZCR &gt; 0.38), or <strong>Unbalance</strong> (RMS Stability / RMS &gt; 0.12).</p>
+          <span class="state-pill">Action Required</span>
+        </article>
       </div>
     </section>
 
