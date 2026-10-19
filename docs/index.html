@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Industrial Doctor v2.0 - Predictive maintenance companion that listens to machine behavior and provides clear health status in real time.">
-  <title>Industrial Doctor v2.0 | Predictive Maintenance Companion</title>
+  <meta name="description" content="Industrial Doctor v3.0 - Advanced ESP32-S3 FreeRTOS multi-core acoustic predictive maintenance firmware and embedded architecture showcase.">
+  <title>Industrial Doctor v3.0 | Embedded Predictive Maintenance Architecture</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Newsreader:ital,wght@0,400;0,500;0,700;1,400;1,500&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -17,9 +17,9 @@
   <script defer src="script.js"></script>
 </head>
 <body>
-  <div class="bg-orb orb-a"></div>
-  <div class="bg-orb orb-b"></div>
-  <div class="bg-orb orb-c"></div>
+  <div class="bg-orb orb-a" aria-hidden="true"></div>
+  <div class="bg-orb orb-b" aria-hidden="true"></div>
+  <div class="bg-orb orb-c" aria-hidden="true"></div>
   <div class="bg-grid" aria-hidden="true"></div>
 
   <header class="topbar">
@@ -27,16 +27,17 @@
       <span class="brand-mark">iD</span>
       <div>
         <p class="brand-name">Industrial Doctor</p>
-        <p class="brand-sub">v2.0</p>
+        <p class="brand-sub">v3.0 Firmware</p>
       </div>
     </div>
 
-    <nav aria-label="Primary">
+    <nav aria-label="Primary Navigation">
       <ul class="nav-list">
-        <li><a href="#purpose">Purpose</a></li>
-        <li><a href="#states">States</a></li>
-        <li><a href="#dashboard">Dashboard</a></li>
-        <li><a href="#hardware">Hardware</a></li>
+        <li><a href="#pipeline">Pipeline</a></li>
+        <li><a href="#architecture">Architecture</a></li>
+        <li><a href="#features">8 Features</a></li>
+        <li><a href="#voter">Fault Voting</a></li>
+        <li><a href="#code">Source Code</a></li>
         <li><a href="https://github.com/mdishauq/INDUSTRIAL-DOCTOR" target="_blank" rel="noopener noreferrer" class="github-link">GitHub ↗</a></li>
       </ul>
     </nav>
@@ -46,582 +47,367 @@
     <!-- ============= HERO SECTION ============= -->
     <section class="hero container reveal">
       <div class="hero-copy">
-        <div class="accent-line"></div>
-        <p class="eyebrow">Always-On Machine Health Companion</p>
-        <h1>Industrial <span>Doctor v2.0</span></h1>
-        <p class="hero-tagline">From machine pulse to digital diagnosis.</p>
+        <div class="accent-line" aria-hidden="true"></div>
+        <p class="eyebrow">ESP32-S3 FreeRTOS Multi-Core Firmware</p>
+        <h1>Industrial <span>Doctor v3.0</span></h1>
+        <p class="hero-tagline">Real-time acoustic machine health monitoring on the edge.</p>
         <p class="hero-text">
-          A people-first monitoring system that helps teams spot machine condition changes early,
-          reduce unplanned downtime, and plan maintenance with confidence. Continuous acoustic
-          monitoring meets edge-deployed intelligence for real-time health feedback.
+          A high-performance embedded systems project built around an ESP32-S3 microcontroller and an INMP441 I2S digital microphone.
+          Utilizes FreeRTOS task partitioning across dual cores, online statistical feature extraction, Welford's variance-based Z-score anomaly engine,
+          and deterministic physics rule validation to diagnose motor health live on a 128&times;64 OLED display.
         </p>
 
         <div class="hero-chips">
-          <span>⚡ Real-Time Monitoring</span>
-          <span>🎯 Non-Technical Readout</span>
-          <span>🔧 Edge Deployment</span>
-          <span>🛡️ Always-On Guard</span>
+          <span>⚡ FreeRTOS Dual-Core</span>
+          <span>🎙️ INMP441 I2S DMA</span>
+          <span>📊 8-Feature Extraction</span>
+          <span>🧠 Hybrid Z-Score Voting</span>
+          <span>📺 SSD1306 OLED UI</span>
         </div>
       </div>
 
-      <div class="hero-panel" role="img" aria-label="Live machine health status panel">
-        <p class="panel-kicker">Live Status</p>
+      <div class="hero-panel" role="region" aria-label="Live machine health telemetry status panel">
+        <p class="panel-kicker">Live Telemetry &amp; State</p>
         <h2 id="hero-state">HEALTHY</h2>
-        <p id="hero-note">Machine behavior is stable and within expected operation.</p>
+        <p id="hero-note">Motor RMS stable, anomaly Z-score within normal bounds.</p>
 
         <div class="meter-wrap">
-          <div class="meter">
+          <div class="meter" role="progressbar" aria-valuenow="91" aria-valuemin="0" aria-valuemax="100">
             <div class="meter-fill" id="meter-fill"></div>
           </div>
-          <p class="meter-label"><span id="meter-value">87%</span> confidence</p>
+          <p class="meter-label">Confidence: <span id="meter-value">91%</span> | Anomaly Z: <span id="anomaly-score-disp">0.12</span></p>
         </div>
       </div>
     </section>
 
-    <!-- ============= PURPOSE SECTION ============= -->
-    <section id="purpose" class="container section reveal">
+    <!-- ============= EXECUTION PIPELINE SECTION ============= -->
+    <section id="pipeline" class="container section reveal">
       <div class="section-head">
-        <div class="accent-line"></div>
-        <p class="eyebrow">Purpose & Mission</p>
-        <h2>Why this project exists</h2>
-        <p class="muted">Many machines fail after subtle warning signs that are easy to miss. Industrial Doctor v2.0 acts like an always-on digital inspector for your equipment.</p>
+        <div class="accent-line" aria-hidden="true"></div>
+        <p class="eyebrow">Execution Pipeline</p>
+        <h2>How the Firmware Operates</h2>
+        <p class="muted">From microphone sample acquisition to multi-core FreeRTOS task coordination and OLED UI updates.</p>
+      </div>
+
+      <div class="journey">
+        <article class="step">
+          <span>01. ACQUIRE</span>
+          <h3>I2S DMA Sampling</h3>
+          <p>INMP441 digital microphone captures audio at 16,000 Hz into 1,024-sample frames via DMA on Core 0.</p>
+        </article>
+        <div class="arrow" aria-hidden="true">→</div>
+        <article class="step">
+          <span>02. EXTRACT</span>
+          <h3>8 Core Features</h3>
+          <p>Calculates RMS, RMS Stability, Goertzel Peak Freq, Kurtosis, Crest Factor, Spectral Centroid, ZCR, and Envelope RMS.</p>
+        </article>
+        <div class="arrow" aria-hidden="true">→</div>
+        <article class="step">
+          <span>03. PROCESS</span>
+          <h3>Hybrid Voting</h3>
+          <p>TaskProcess on Core 1 evaluates online Z-score anomaly engine combined with deterministic physics rule checks.</p>
+        </article>
+        <div class="arrow" aria-hidden="true">→</div>
+        <article class="step">
+          <span>04. DISPLAY</span>
+          <h3>OLED Dashboard</h3>
+          <p>TaskUI renders real-time health status, confidence score, and live feature inspection screens via joystick.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============= CORE FIRMWARE MODULES SECTION ============= -->
+    <section id="architecture" class="container section reveal">
+      <div class="section-head">
+        <div class="accent-line" aria-hidden="true"></div>
+        <p class="eyebrow">Source Code Modules (`src/` &amp; `include/`)</p>
+        <h2>Core Firmware Architecture Breakdown</h2>
+        <p class="muted">Detailed technical breakdown of the 5 core C++ modules orchestrating the embedded system.</p>
+      </div>
+
+      <div class="card-grid three">
+        <article class="info-card">
+          <h3>⚡ main.cpp</h3>
+          <p><strong>Orchestrator &amp; RTOS Controller:</strong> Initializes Serial, I2C OLED (0x3C/0x3D), plays boot animation, runs two-stage calibration (Ambient &amp; Healthy Motor), creates queues/mutexes, and spawns <code>TaskAcquire</code> (Core 0), <code>TaskProcess</code> (Core 1), and <code>TaskUI</code> (Core 1).</p>
+        </article>
+
+        <article class="info-card">
+          <h3>🎙️ feature_extraction.cpp</h3>
+          <p><strong>Signal Processing Engine:</strong> Configures I2S driver pins (WS:13, SD:11, SCK:12) at 16kHz. Processes 1,024 sample frames with normalization, Hann windowing, Goertzel frequency scanning (20Hz–7.5kHz), and time-domain statistical moments.</p>
+        </article>
+
+        <article class="info-card">
+          <h3>🧠 anomaly_engine.cpp</h3>
+          <p><strong>Statistical Baseline:</strong> Implements Welford’s online mean and variance algorithm during 150-sample healthy calibration. Calculates real-time Z-scores across all 8 features and maps average deviation to a 0.0–1.0 anomaly probability.</p>
+        </article>
+
+        <article class="info-card">
+          <h3>⚖️ diagnosis_voter.cpp</h3>
+          <p><strong>Hybrid Decision Ensemble:</strong> Evaluates strict fault priority rules (Silent/Off → Ambient Noise → Bearing Impact via Kurtosis/Crest → Friction via Centroid/ZCR → Unbalance via RMS Stability), blending 40% physics rules with 60% anomaly score.</p>
+        </article>
+
+        <article class="info-card">
+          <h3>🖥️ inspection_menu.cpp</h3>
+          <p><strong>Interactive OLED UI:</strong> Handles joystick ADC input (&gt;3000 UP, &lt;1000 DOWN) with 250ms debouncing. Manages screen navigation between the primary diagnosis dashboard and the scrolling 8-feature live telemetry view.</p>
+        </article>
+
+        <article class="info-card">
+          <h3>🚀 boot_animation.h</h3>
+          <p><strong>Startup Sequence:</strong> Renders vector-based logo graphics, bezier swooshes, and EKG heartbeat waveforms on the SSD1306 display during device initialization.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============= 8 EXTRACTED FEATURES SECTION ============= -->
+    <section id="features" class="container section reveal">
+      <div class="section-head">
+        <div class="accent-line" aria-hidden="true"></div>
+        <p class="eyebrow">Signal Metrics</p>
+        <h2>The 8 Extracted Motor Features</h2>
+        <p class="muted">Every 1,024-sample audio frame is distilled into these robust numerical indicators.</p>
       </div>
 
       <div class="card-grid four">
         <article class="info-card">
-          <h3>🎯 Prevent Surprises</h3>
-          <p>Catch warning signals sooner so maintenance can be planned, not rushed.</p>
+          <h3>1. RMS</h3>
+          <p>Root Mean Square of signal amplitude. Measures overall acoustic energy and detects motor operation vs ambient silence.</p>
         </article>
         <article class="info-card">
-          <h3>👥 Support Operators</h3>
-          <p>Turn complex machine behavior into straightforward status language everyone understands.</p>
+          <h3>2. RMS Stability</h3>
+          <p>Standard deviation of recent RMS history. High values indicate load fluctuations or mechanical unbalance.</p>
         </article>
         <article class="info-card">
-          <h3>⏱️ Reduce Downtime</h3>
-          <p>Improve response time when equipment behavior begins to drift from normal.</p>
+          <h3>3. Peak Frequency</h3>
+          <p>Dominant frequency identified via Goertzel algorithm scan from 20 Hz to 7,500 Hz.</p>
         </article>
         <article class="info-card">
-          <h3>💪 Build Confidence</h3>
-          <p>Give teams a clear visual health signal directly on-device, always available.</p>
+          <h3>4. Kurtosis</h3>
+          <p>Fourth statistical moment measuring waveform peakedness. Spikes above 3.4 indicate bearing impact shocks.</p>
+        </article>
+        <article class="info-card">
+          <h3>5. Crest Factor</h3>
+          <p>Ratio of peak absolute amplitude to RMS (&gt;4.1 threshold) for detecting sharp mechanical impacts.</p>
+        </article>
+        <article class="info-card">
+          <h3>6. Spectral Centroid</h3>
+          <p>Weighted mean frequency representing sound brightness. High centroid (&gt;1400Hz) indicates friction/dragging.</p>
+        </article>
+        <article class="info-card">
+          <h3>7. Zero-Crossing Rate</h3>
+          <p>Counts polarity switches above noise floor (80.0f). Measures signal chaos and high-frequency content.</p>
+        </article>
+        <article class="info-card">
+          <h3>8. Envelope RMS</h3>
+          <p>Derived from high-pass filtered rectification and smoothing to capture rolling element modulation.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============= FAULT VOTING & DIAGNOSIS LOGIC SECTION ============= -->
+    <section id="voter" class="container section reveal">
+      <div class="section-head">
+        <div class="accent-line" aria-hidden="true"></div>
+        <p class="eyebrow">Decision Logic</p>
+        <h2>Deterministic Fault Voting &amp; Hybrid Scoring</h2>
+        <p class="muted">How physics engineering rules combine with statistical machine learning models.</p>
+      </div>
+
+      <div class="card-grid three">
+        <article class="state-card ambient">
+          <h3>🔇 Ambient State</h3>
+          <p>Triggered when RMS is below calibrated ambient guardrail (<code>averageAmbientRms * 1.30</code>, capped between 20 and 120). Treats environment as idle.</p>
+          <span class="state-pill">Standby</span>
+        </article>
+
+        <article class="state-card healthy">
+          <h3>✅ Healthy State</h3>
+          <p>Triggered when direct fault rules pass and combined anomaly score is &le; 0.35. Physics rules and healthy baseline agree operation is normal.</p>
+          <span class="state-pill">Normal Operation</span>
+        </article>
+
+        <article class="state-card fault">
+          <h3>⚠️ Fault Classification</h3>
+          <p>Identifies specific mechanical failure modes: <strong>Bearing Damage</strong> (Crest &gt; 4.1 or Kurtosis &gt; 3.4), <strong>Friction</strong> (Centroid &gt; 1400Hz &amp; ZCR &gt; 0.38), or <strong>Unbalance</strong> (RMS Stability / RMS &gt; 0.12).</p>
+          <span class="state-pill">Action Required</span>
         </article>
       </div>
 
       <div class="highlight-box">
-        <h4>🚀 Real-World Impact</h4>
-        <p>Plant operators, maintenance supervisors, and production managers gain early warning before breakdowns. Teams make practical maintenance decisions faster with data-backed confidence signals.</p>
-      </div>
-    </section>
-
-    <!-- ============= BENTO GRID FEATURES ============= -->
-    <section class="container section reveal">
-      <div class="section-head">
-        <div class="accent-line"></div>
-        <p class="eyebrow">Core Features</p>
-        <h2>Advanced Monitoring Capabilities</h2>
-        <p class="muted">Powerful features built into every deployment</p>
-      </div>
-
-      <div class="bento-grid">
-        <article class="bento-card bento-1" data-aos="fade-up" data-aos-delay="0">
-          <div class="bento-icon">⚡</div>
-          <h3>Real-Time Analysis</h3>
-          <p>Instant signal processing with sub-100ms latency for immediate response to anomalies.</p>
-        </article>
-
-        <article class="bento-card bento-2" data-aos="fade-up" data-aos-delay="100">
-          <div class="bento-icon">🔬</div>
-          <h3>Adaptive Intelligence</h3>
-          <p>Self-learning baseline that adapts to machine behavior over time, reducing false alarms.</p>
-        </article>
-
-        <article class="bento-card bento-3" data-aos="fade-up" data-aos-delay="200">
-          <div class="bento-icon">🎯</div>
-          <h3>Multi-Parameter Detection</h3>
-          <p>Analyzes RMS, Peak Hz, Centroid, Kurtosis, and Zero-Crossing Rate simultaneously.</p>
-        </article>
-
-        <article class="bento-card bento-4" data-aos="fade-up" data-aos-delay="300">
-          <div class="bento-icon">🛡️</div>
-          <h3>Offline Operation</h3>
-          <p>Completely edge-deployed. Works without internet, cloud, or external dependencies.</p>
-        </article>
-
-        <article class="bento-card bento-5" data-aos="fade-up" data-aos-delay="400">
-          <div class="bento-icon">📊</div>
-          <h3>Historical Tracking</h3>
-          <p>Maintains rolling baselines and historical patterns for trend analysis and predictions.</p>
-        </article>
-
-        <article class="bento-card bento-6" data-aos="fade-up" data-aos-delay="500">
-          <div class="bento-icon">🌐</div>
-          <h3>Low Power Design</h3>
-          <p>Optimized firmware consumes minimal power—runs on standard batteries for weeks.</p>
-        </article>
+        <h4>🧮 Hybrid Scoring Formula</h4>
+        <p>When no direct threshold rule triggers immediately, the final decision blends deterministic engineering physics with unsupervised anomaly detection:</p>
+        <p style="font-family: 'Space Mono', monospace; font-size: 0.9rem; margin-top: 0.5rem; color: var(--green-primary);">
+          Final Anomaly Score = (Physics Anomaly Score &times; 0.40) + (Online Z-Score Anomaly &times; 0.60)
+        </p>
+        <p style="margin-top: 0.5rem;">Scores below 0.35 return <strong>Healthy</strong>, scores above 0.60 return <strong>System Anomaly</strong>, and intermediate values indicate uncertain transition states.</p>
       </div>
     </section>
 
     <!-- ============= CODE IMPLEMENTATION SECTION ============= -->
-    <section class="container section reveal">
+    <section id="code" class="container section reveal">
       <div class="section-head">
-        <div class="accent-line"></div>
-        <p class="eyebrow">Integration Guide</p>
-        <h2>Example Integration Code</h2>
-        <p class="muted">Quick reference for integrating Industrial Doctor into your system</p>
+        <div class="accent-line" aria-hidden="true"></div>
+        <p class="eyebrow">Firmware Snippets</p>
+        <h2>Core C++ Implementation Highlights</h2>
+        <p class="muted">Excerpts from FreeRTOS task creation and the Welford online anomaly calculation engine.</p>
       </div>
 
       <div class="code-showcase">
         <div class="code-block" data-aos="fade-right">
           <div class="code-header">
-            <span class="code-lang">python</span>
-            <span class="code-title">Device Communication</span>
+            <span class="code-lang">cpp</span>
+            <span class="code-title">src/main.cpp - FreeRTOS Multi-Core Task Spawning</span>
           </div>
-          <pre><code class="language-python">import serial
-import json
+          <pre><code class="language-cpp">// Create FreeRTOS synchronization primitives
+xAudioQueue = xQueueCreate(3, sizeof(MotorFeatures));
+xDataMutex = xSemaphoreCreateMutex();
 
-class IndustrialDoctorClient:
-    def __init__(self, port='/dev/ttyUSB0', baud=115200):
-        self.serial = serial.Serial(port, baud, timeout=1)
-    
-    def read_status(self):
-        """Fetch current device status"""
-        if self.serial.in_waiting:
-            line = self.serial.readline().decode().strip()
-            return json.loads(line)
-        return None
-    
-    def get_health(self):
-        """Get machine health state"""
-        data = self.read_status()
-        return {
-            'state': data.get('state'),  # HEALTHY, FAULT, AMBIENT
-            'confidence': data.get('confidence'),  # 0-100%
-            'timestamp': data.get('timestamp')
-        }
+// TaskAcquire pinned to Core 0 (Microphone DMA reader)
+xTaskCreatePinnedToCore(
+    TaskAcquire, "AcquireTask", 4096, NULL, 3, &amp;TaskAcquireHandle, 0
+);
 
-# Usage
-doctor = IndustrialDoctorClient()
-status = doctor.get_health()
-print(f"Machine status: {status['state']} ({status['confidence']}%)")</code></pre>
+// TaskProcess pinned to Core 1 (Feature analysis &amp; anomaly scoring)
+xTaskCreatePinnedToCore(
+    TaskProcess, "ProcessTask", 4096, NULL, 2, &amp;TaskProcessHandle, 1
+);
+
+// TaskUI pinned to Core 1 (Joystick &amp; SSD1306 OLED rendering)
+xTaskCreatePinnedToCore(
+    TaskUI, "UITask", 4096, NULL, 1, &amp;TaskUIHandle, 1
+);</code></pre>
         </div>
 
         <div class="code-block" data-aos="fade-left" data-aos-delay="100">
           <div class="code-header">
-            <span class="code-lang">javascript</span>
-            <span class="code-title">Web Dashboard Integration</span>
+            <span class="code-lang">cpp</span>
+            <span class="code-title">src/anomaly_engine.cpp - Welford Online Variance</span>
           </div>
-          <pre><code class="language-javascript">// Establish real-time connection to device
-const socket = new WebSocket('ws://device-ip:8080/status');
-
-socket.onmessage = (event) => {
-  const data = JSON.parse(event.data);
-  
-  // Update UI with live status
-  updateDashboard({
-    state: data.state,
-    confidence: data.confidence,
-    metrics: {
-      rms: data.rms,
-      peakHz: data.peakHz,
-      centroid: data.centroid
+          <pre><code class="language-cpp">void AnomalyEngine::addSample(const float* features) {
+    _sampleCount++;
+    for (int i = 0; i &lt; 8; i++) {
+        float x = features[i];
+        float delta = x - _mean[i];
+        _mean[i] += delta / _sampleCount;
+        float delta2 = x - _mean[i];
+        _m2[i] += delta * delta2;
     }
-  });
-  
-  // Alert if fault detected
-  if (data.state === 'FAULT') {
-    notifyMaintenance('Anomaly detected', data);
-  }
-};
+}
 
-socket.onerror = (error) => {
-  console.error('Connection lost:', error);
-};</code></pre>
+float AnomalyEngine::score(const float* features) {
+    float totalZ = 0.0f;
+    for (int i = 0; i &lt; 8; i++) {
+        float stdDev = sqrtf(_m2[i] / (_sampleCount - 1));
+        if (stdDev &lt; 1e-3f) stdDev = 1e-3f; // Epsilon guard
+        float z = fabsf(features[i] - _mean[i]) / stdDev;
+        totalZ += fminf(z, 6.0f); // Cap outlier impact
+    }
+    float avgZ = totalZ / 8.0f;
+    return fminf(fmaxf((avgZ - 2.0f) / 3.0f, 0.0f), 1.0f);
+}</code></pre>
         </div>
       </div>
     </section>
 
-    <!-- ============= JOURNEY SECTION ============= -->
+    <!-- ============= OLED DISPLAY SIMULATOR SECTION ============= -->
     <section class="container section reveal">
       <div class="section-head">
-        <div class="accent-line"></div>
-        <p class="eyebrow">At a glance</p>
-        <h2>Simple journey from machine to decision</h2>
-      </div>
-
-      <div class="journey">
-        <div class="step">
-          <span>01</span>
-          <h3>Listen</h3>
-          <p>Device continuously monitors machine acoustic behavior and vibration signatures.</p>
-        </div>
-        <div class="arrow">→</div>
-        <div class="step">
-          <span>02</span>
-          <h3>Interpret</h3>
-          <p>On-device intelligence evaluates condition trends and pattern changes in real time.</p>
-        </div>
-        <div class="arrow">→</div>
-        <div class="step">
-          <span>03</span>
-          <h3>Display</h3>
-          <p>OLED presents clear status: Ambient, Healthy, or Fault immediately.</p>
-        </div>
-        <div class="arrow">→</div>
-        <div class="step">
-          <span>04</span>
-          <h3>Act</h3>
-          <p>Teams make practical maintenance decisions faster with confidence.</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- ============= SYSTEM STATES SECTION ============= -->
-    <section id="states" class="container section reveal">
-      <div class="section-head">
-        <div class="accent-line"></div>
-        <p class="eyebrow">System States</p>
-        <h2>Three clear outcomes</h2>
-        <p class="muted">Each state has a distinct acoustic signature and visual indicator on the device display.</p>
-      </div>
-
-      <div class="card-grid three">
-        <article class="state-card ambient">
-          <h3>🔇 Ambient</h3>
-          <p>No meaningful machine activity detected. Monitoring remains active and ready.</p>
-          <span class="state-pill">Standby</span>
-        </article>
-
-        <article class="state-card healthy">
-          <h3>✅ Healthy</h3>
-          <p>Machine behavior appears stable and within normal operating profile. Continue normal operations.</p>
-          <span class="state-pill">Normal</span>
-        </article>
-
-        <article class="state-card fault">
-          <h3>⚠️ Fault</h3>
-          <p>Noticeable condition deviation detected. Maintenance attention recommended soon.</p>
-          <span class="state-pill">Attention</span>
-        </article>
-      </div>
-
-      <!-- STATE DETAILS SECTION -->
-      <div style="margin-top: 3rem;">
-        <h3 style="font-size: 1.3rem; color: var(--text); margin-bottom: 1.5rem;">Understanding Each State</h3>
-
-        <!-- Ambient State -->
-        <article class="highlight-box" style="margin-bottom: 1.5rem;">
-          <h4>🔇 Ambient State: No Machine Activity</h4>
-          <p>The machine is powered off or no meaningful mechanical activity is detected. The system remains active and listening, but no significant vibration or acoustic signature is present.</p>
-          <p><strong>Signal Characteristics:</strong> The PeakHz values are extremely volatile—swinging wildly across the full 0–2000 Hz range with no stable pattern. This chaotic behavior is characteristic of background environmental noise with no organized mechanical source. RMS and Centroid values also shift unpredictably.</p>
-          <p><strong>What to do:</strong> Monitor the device. Ambient state is normal for powered-off or idle equipment. No action needed.</p>
-        </article>
-
-        <!-- Healthy State -->
-        <article class="highlight-box" style="margin-bottom: 1.5rem;">
-          <h4>✅ Healthy State: Normal Operation</h4>
-          <p>The machine is running normally. Signal features are stable and within expected bounds. No intervention is needed at this time.</p>
-          <p><strong>Signal Characteristics:</strong> The PeakHz line sits in a tight, stable band (typically 650–700 Hz) for most of the monitoring period. RMS and Centroid move gradually and smoothly without sudden jumps. Natural variation appears as load shifts—but always stays within the expected envelope. The overall picture is calm, consistent, and predictable.</p>
-          <p><strong>What to do:</strong> Continue normal operations. Maintenance is scheduled as per standard intervals. Equipment is operating as expected.</p>
-        </article>
-
-        <!-- Fault State -->
-        <article class="highlight-box">
-          <h4>⚠️ Fault State: Anomaly Detected</h4>
-          <p>An anomaly has been detected. The signal shows characteristics that deviate from the healthy baseline. The system flags this early so action can be planned rather than forced.</p>
-          <p><strong>Signal Characteristics:</strong> The PeakHz line is mostly stable but interrupted by sharp, isolated spikes that shoot to 1700–2000 Hz before returning to baseline. These sudden impulse events are the key fault indicator. Unlike Ambient noise (which is continuously chaotic), these spikes are brief, repeating, and structurally distinct. RMS and Centroid may dip slightly around fault events, indicating abnormal stress.</p>
-          <p><strong>What to do:</strong> Plan a maintenance inspection soon. The equipment is showing early signs of wear or developing mechanical issues. Address before conditions worsen.</p>
-        </article>
-      </div>
-
-      <!-- Comparison Table -->
-      <h3 style="font-size: 1.3rem; color: var(--text); margin-top: 2.5rem; margin-bottom: 1.5rem;">State Comparison Summary</h3>
-      <table class="comparison-table">
-        <thead>
-          <tr>
-            <th>Feature</th>
-            <th>Ambient</th>
-            <th>Healthy</th>
-            <th>Fault</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong>PeakHz Behavior</strong></td>
-            <td>Chaotic, full range swings</td>
-            <td>Stable, narrow band</td>
-            <td>Stable + isolated spikes</td>
-          </tr>
-          <tr>
-            <td><strong>RMS / Centroid</strong></td>
-            <td>Unpredictable shifts</td>
-            <td>Smooth and gradual</td>
-            <td>Slightly unstable around spikes</td>
-          </tr>
-          <tr>
-            <td><strong>ZCR Pattern</strong></td>
-            <td>Variable, no pattern</td>
-            <td>Low and consistent</td>
-            <td>Low with brief bursts</td>
-          </tr>
-          <tr>
-            <td><strong>Interpretation</strong></td>
-            <td>No machine activity</td>
-            <td>Normal operation</td>
-            <td>Developing mechanical issue</td>
-          </tr>
-          <tr>
-            <td><strong>Recommended Action</strong></td>
-            <td>None</td>
-            <td>Continue monitoring</td>
-            <td>Schedule inspection</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <!-- Photo Grid -->
-      <h3 style="font-size: 1.3rem; color: var(--text); margin-top: 2.5rem; margin-bottom: 1.5rem;">OLED Display Visual Reference</h3>
-      <div class="photo-grid">
-        <figure class="photo-card">
-          <img src="assets/ambient.jpg" alt="Ambient state display visualization">
-          <figcaption>Ambient State: Powered off or idle mode</figcaption>
-        </figure>
-
-        <figure class="photo-card">
-          <img src="assets/healthy.jpg" alt="Healthy state display visualization">
-          <figcaption>Healthy State: Normal operational mode</figcaption>
-        </figure>
-
-        <figure class="photo-card">
-          <img src="assets/fault.jpg" alt="Fault state display visualization">
-          <figcaption>Fault State: Anomaly detection alert</figcaption>
-        </figure>
-
-        <figure class="photo-card">
-          <img src="https://via.placeholder.com/600x375/d4f1eb/2d7a68?text=Feature+Readout+Page" alt="Feature readout display page">
-          <figcaption>Feature Readout: Detailed signal analysis</figcaption>
-        </figure>
-      </div>
-    </section>
-
-    <!-- ============= DASHBOARD SECTION ============= -->
-    <section id="dashboard" class="container section reveal">
-      <div class="section-head">
-        <div class="accent-line"></div>
-        <p class="eyebrow">Visual Dashboard</p>
-        <h2>Project impact snapshot</h2>
-        <p class="muted">Charts below show high-level presentation visuals for portfolio and demonstration purposes.</p>
-      </div>
-
-      <div class="charts-grid">
-        <article class="chart-card">
-          <h3>📊 Status Distribution</h3>
-          <p class="muted" style="margin-bottom: 1rem; font-size: 0.9rem;">Breakdown of system states across monitored equipment fleet.</p>
-          <canvas id="statusChart" aria-label="Status distribution chart"></canvas>
-        </article>
-
-        <article class="chart-card">
-          <h3>📈 Operational Confidence Trend</h3>
-          <p class="muted" style="margin-bottom: 1rem; font-size: 0.9rem;">Real-time confidence score throughout a typical workday.</p>
-          <canvas id="trendChart" aria-label="Confidence trend chart"></canvas>
-        </article>
-      </div>
-
-      <div class="highlight-box" style="margin-top: 2rem;">
-        <h4>📌 Chart Context</h4>
-        <p>These visualizations represent aggregate metrics useful for stakeholder communication and project impact demonstration. The actual predictive logic running on-device is intentionally not exposed—this maintains proprietary value while clearly communicating real-world benefits.</p>
-      </div>
-    </section>
-
-    <!-- ============= OLED SCREENS SECTION ============= -->
-    <section class="container section reveal">
-      <div class="section-head">
-        <div class="accent-line"></div>
-        <p class="eyebrow">Device Firmware</p>
-        <h2>OLED Display Screens</h2>
-        <p class="muted">Real firmware visualization showing what appears on the 128×64 monochrome display during operation.</p>
+        <div class="accent-line" aria-hidden="true"></div>
+        <p class="eyebrow">Device UI</p>
+        <h2>OLED Display Simulator (128&times;64 SSD1306)</h2>
+        <p class="muted">Live visualization of what renders on the hardware during boot, calibration, and runtime inspection.</p>
       </div>
 
       <div class="oled-showcase">
         <article class="oled-sim">
-          <p class="oled-title">Warming Up</p>
-          <div class="oled-screen" id="oled-warmup">
+          <p class="oled-title">Boot Animation</p>
+          <div class="oled-screen">
             <div style="padding:4px;">
-              <p style="margin:0;font-size:8px;border-bottom:1px solid #fff;padding-bottom:2px;">INDUSTRIAL DOCTOR v2</p>
-              <p style="margin:2px 0;font-size:7px;">WARMING UP<span id="dots-warmup">...</span></p>
-              <p style="margin:2px 0;font-size:6px;">Detecting motor mode</p>
-              <canvas id="heartbeat" width="120" height="16" style="display:block;margin:4px 0;"></canvas>
-              <p style="margin:2px 0;font-size:6px;">Hold motor steady...</p>
+              <p style="margin:0;font-size:8px;border-bottom:1px solid #fff;padding-bottom:2px;">INDUSTRIAL DOCTOR v3</p>
+              <p style="margin:2px 0;font-size:7px;">BOOT SEQUENCE<span id="dots-warmup">...</span></p>
+              <canvas id="heartbeat" width="120" height="16" style="display:block;margin:4px 0;" aria-label="Heartbeat ECG animation"></canvas>
+              <p style="margin:2px 0;font-size:6px;">I2S Mic &amp; OLED Ready</p>
             </div>
           </div>
         </article>
 
         <article class="oled-sim">
-          <p class="oled-title">Calibrating</p>
-          <div class="oled-screen" id="oled-calibrate">
+          <p class="oled-title">Calibration Wizard</p>
+          <div class="oled-screen">
             <div style="padding:4px;">
               <p style="margin:0;font-size:8px;border-bottom:1px solid #fff;padding-bottom:2px;display:flex;justify-content:space-between;">
-                <span>INDUSTRIAL DOCTOR v2</span>
-                <span id="voltage-mode">[ 8V ]</span>
+                <span>CALIBRATION</span>
+                <span>[ 150/150 ]</span>
               </p>
-              <p style="margin:2px 0;font-size:7px;">CALIBRATING<span id="dots-calib">...</span></p>
+              <p style="margin:2px 0;font-size:7px;">HEALTHY BASELINE</p>
               <div style="margin:3px 0;border:1px solid #fff;height:6px;position:relative;">
-                <div id="progress-bar" style="height:100%;width:45%;background:#fff;"></div>
+                <div id="progress-bar" style="height:100%;width:75%;background:#fff;"></div>
               </div>
-              <p style="margin:2px 0;font-size:6px;" id="progress-text">45%  Building baseline</p>
-              <p style="margin:2px 0;font-size:6px;">Keep motor running...</p>
+              <p style="margin:2px 0;font-size:6px;" id="progress-text">75% Welford variance</p>
             </div>
           </div>
         </article>
 
         <article class="oled-sim">
-          <p class="oled-title">Rolling Baseline</p>
-          <div class="oled-screen" id="oled-rolling">
+          <p class="oled-title">Dashboard Status</p>
+          <div class="oled-screen">
             <div style="padding:4px;">
               <p style="margin:0;font-size:8px;border-bottom:1px solid #fff;padding-bottom:2px;display:flex;justify-content:space-between;">
-                <span>INDUSTRIAL DOCTOR v2</span>
-                <span>[ 8V ]</span>
+                <span>LIVE DIAGNOSIS</span>
+                <span>CORE 1</span>
               </p>
-              <p style="margin:2px 0;font-size:7px;">ROLLING BASELINE<span id="dots-rolling">...</span></p>
-              <canvas id="sine-wave" width="120" height="18" style="display:block;margin:4px 0;"></canvas>
-              <p style="margin:2px 0;font-size:6px;">Adapting to env...</p>
+              <p style="margin:4px 0 2px 0;font-size:10px;font-weight:bold;">MOTOR HEALTHY</p>
+              <p style="margin:2px 0;font-size:7px;">Confidence: 94%</p>
+              <p style="margin:2px 0;font-size:6px;color:#00d9ff;">Anomaly Z: 0.14</p>
             </div>
           </div>
         </article>
 
         <article class="oled-sim">
           <p class="oled-title">Feature Readout</p>
-          <div class="oled-screen" id="oled-features">
+          <div class="oled-screen">
             <div style="padding:4px;font-size:6px;">
               <p style="margin:0;font-size:8px;border-bottom:1px solid #fff;padding-bottom:2px;">
-                Features  <span id="page-num">1</span>/4
+                FEATURES <span id="page-num">1</span>/4
               </p>
-              <p style="margin:3px 0;">RMS</p>
+              <p style="margin:3px 0;">RMS ENERGY</p>
               <p style="margin:0;font-size:10px;font-weight:bold;" id="rms-val">245.8</p>
-              <p style="margin:3px 0;">PEAK Hz</p>
-              <p style="margin:0;font-size:10px;font-weight:bold;" id="hz-val">1247</p>
+              <p style="margin:3px 0;">PEAK FREQ</p>
+              <p style="margin:0;font-size:10px;font-weight:bold;" id="hz-val">1247 Hz</p>
             </div>
           </div>
         </article>
       </div>
-
-      <div class="highlight-box" style="margin-top: 2rem;">
-        <h4>🖥️ Display States Explained</h4>
-        <p><strong>Warming Up:</strong> Device initializes and detects motor operating mode. Heartbeat visualization shows signal acquisition.</p>
-        <p><strong>Calibrating:</strong> System builds baseline profile during normal operation. Progress bar shows completion status.</p>
-        <p><strong>Rolling Baseline:</strong> Continuous adaptive baseline adjustment as machine operates under varying loads.</p>
-        <p><strong>Feature Readout:</strong> Rotates through signal analysis metrics like RMS, Peak Hz, Centroid, and Zero-Crossing Rate for technical review.</p>
-      </div>
     </section>
 
-    <!-- ============= SCOPE SECTION ============= -->
-    <section id="scope" class="container section reveal">
-      <div class="section-head">
-        <div class="accent-line"></div>
-        <p class="eyebrow">Scope & Positioning</p>
-        <h2>What this showcase includes & excludes</h2>
-      </div>
-
-      <div class="scope-layout">
-        <article>
-          <h3>✅ Included</h3>
-          <ul>
-            <li>Project purpose and real-world value proposition.</li>
-            <li>Simple operating states for non-technical audiences.</li>
-            <li>Hardware role overview and practical implementation context.</li>
-            <li>Visual storytelling for portfolio and demo use.</li>
-            <li>State comparison and signal characteristic explanations.</li>
-            <li>User experience and workflow documentation.</li>
-          </ul>
-        </article>
-
-        <article>
-          <h3>🔒 Not Disclosed</h3>
-          <ul>
-            <li>Internal formulas and decision thresholds.</li>
-            <li>Calibration constants and tuning values.</li>
-            <li>Implementation-specific heuristics and algorithms.</li>
-            <li>Proprietary machine learning model details.</li>
-            <li>Exact feature extraction methods.</li>
-            <li>Any secret sauce or competitive advantages.</li>
-          </ul>
-        </article>
-      </div>
-
-      <div class="highlight-box" style="margin-top: 2rem;">
-        <h4>🎯 Project Positioning</h4>
-        <p>Industrial Doctor v2.0 is a practical bridge between machine behavior and human decision-making. It is designed to be understandable, dependable, and useful in real operating environments. This showcase communicates the value and user experience without exposing proprietary core methods.</p>
-      </div>
-    </section>
-
-    <!-- ============= HARDWARE SECTION ============= -->
-    <section id="hardware" class="container section reveal">
-      <div class="section-head">
-        <div class="accent-line"></div>
-        <p class="eyebrow">Physical Platform</p>
-        <h2>Hardware components</h2>
-        <p class="muted">Carefully selected components that balance capability, cost, and reliability in field environments.</p>
-      </div>
-
-      <div class="card-grid three">
-        <article class="info-card hardware">
-          <h3>⚙️ ESP32 Controller</h3>
-          <p>Powerful microcontroller runs all on-device monitoring, analysis, and display workflow. Low power consumption perfect for continuous operation.</p>
-        </article>
-        <article class="info-card hardware">
-          <h3>🎤 Digital MEMS Mic</h3>
-          <p>Precision microphone captures machine sound signatures and vibration harmonics for continuous real-time observation and pattern analysis.</p>
-        </article>
-        <article class="info-card hardware">
-          <h3>📺 SSD1306 OLED</h3>
-          <p>128×64 monochrome display presents live machine condition directly at the edge. Always available, no network dependency.</p>
-        </article>
-      </div>
-
-      <div class="highlight-box" style="margin-top: 2rem;">
-        <h4>🛠️ Implementation Philosophy</h4>
-        <p>All computation and decision-making happens on the edge device itself. This means:</p>
-        <ul style="margin: 0.5rem 0 0 1.5rem; padding: 0;">
-          <li>✅ No cloud dependency or latency</li>
-          <li>✅ Real-time response always available</li>
-          <li>✅ Works in offline environments</li>
-          <li>✅ Data never leaves the facility</li>
-          <li>✅ Low bandwidth requirements</li>
-        </ul>
-      </div>
-    </section>
-
-    <!-- ============= QUICK FACTS SECTION ============= -->
+    <!-- ============= ANALYTICS CHARTS SECTION ============= -->
     <section class="container section reveal">
       <div class="section-head">
-        <div class="accent-line"></div>
-        <p class="eyebrow">Who This Is For</p>
-        <h2>Ideal for teams that want better visibility</h2>
+        <div class="accent-line" aria-hidden="true"></div>
+        <p class="eyebrow">Telemetry Analytics</p>
+        <h2>Real-Time Feature &amp; Anomaly Distribution</h2>
+        <p class="muted">Visualizing statistical feature breakdown and operational confidence over a monitoring cycle.</p>
       </div>
 
-      <div class="card-grid four">
-        <article class="info-card">
-          <h3>👷 Plant Operators</h3>
-          <p>Get clear health signals without complex technical analysis.</p>
+      <div class="charts-grid">
+        <article class="chart-card">
+          <h3>📊 Diagnostic State Distribution</h3>
+          <p class="muted" style="margin-bottom: 1rem; font-size: 0.9rem;">Proportion of states observed across test motor runs.</p>
+          <canvas id="statusChart" aria-label="Diagnostic state distribution chart"></canvas>
         </article>
-        <article class="info-card">
-          <h3>🔧 Maintenance Supervisors</h3>
-          <p>Plan maintenance with data-backed confidence instead of guessing.</p>
-        </article>
-        <article class="info-card">
-          <h3>📊 Production Managers</h3>
-          <p>Reduce surprise downtime and optimize equipment scheduling.</p>
-        </article>
-        <article class="info-card">
-          <h3>💼 Plant Leadership</h3>
-          <p>Improve OEE and asset reliability through early interventions.</p>
+
+        <article class="chart-card">
+          <h3>📈 Anomaly Score vs Confidence Trend</h3>
+          <p class="muted" style="margin-bottom: 1rem; font-size: 0.9rem;">Tracking Z-score anomaly progression over time.</p>
+          <canvas id="trendChart" aria-label="Anomaly score and confidence trend chart"></canvas>
         </article>
       </div>
     </section>
   </main>
 
   <footer class="container footer">
-    <p class="footer-title">Industrial Doctor v2.0</p>
-    <p class="footer-note">Predictive maintenance companion • Edge-deployed intelligence • Always monitoring</p>
-    <p class="footer-note" style="margin-top: 1rem; font-size: 0.85rem; opacity: 0.8;">Public-facing showcase. Proprietary core logic intentionally not disclosed.</p>
+    <p class="footer-title">Industrial Doctor v3.0 Firmware</p>
+    <p class="footer-note">ESP32-S3 • FreeRTOS Multi-Core • INMP441 I2S • Welford Anomaly Engine • SSD1306 OLED</p>
+    <p class="footer-note" style="margin-top: 1rem; font-size: 0.85rem; opacity: 0.8;">Built by Mohamed Ishauq • Open-Source Embedded Systems Architecture.</p>
   </footer>
 </body>
 </html>
