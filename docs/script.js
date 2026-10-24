@@ -60,6 +60,25 @@ function initHeroTelemetryAnimation() {
 }
 
 /**
+ * Mobile navigation toggle
+ */
+function initMobileNav() {
+  const btn = document.getElementById("nav-toggle");
+  const nav = document.getElementById("primary-nav");
+  if (!btn || !nav) return;
+
+  const setOpen = (open) => {
+    btn.classList.toggle("open", open);
+    nav.classList.toggle("open", open);
+    btn.setAttribute("aria-expanded", String(open));
+  };
+
+  btn.addEventListener("click", () => setOpen(!nav.classList.contains("open")));
+  nav.querySelectorAll("a").forEach((a) => a.addEventListener("click", () => setOpen(false)));
+  window.addEventListener("resize", () => { if (window.innerWidth > 900) setOpen(false); });
+}
+
+/**
  * Reveal elements as they scroll into view using Intersection Observer
  */
 function initRevealAnimations() {
@@ -75,7 +94,7 @@ function initRevealAnimations() {
         }
       });
     },
-    { threshold: 0.1 }
+    { threshold: 0, rootMargin: "0px 0px -40px 0px" }
   );
 
   revealItems.forEach((el) => obs.observe(el));
@@ -106,6 +125,7 @@ function initCharts() {
       },
       options: {
         responsive: true,
+        maintainAspectRatio: true,
         plugins: {
           legend: { position: "bottom", labels: { color: textColor, font: { family: "Sora", size: 11 } } }
         }
@@ -190,6 +210,7 @@ function initOledSimulations() {
 // Initialize everything securely on DOMContentLoaded
 window.addEventListener("DOMContentLoaded", () => {
   requestAnimationFrame(() => {
+    initMobileNav();
     initHeroTelemetryAnimation();
     initRevealAnimations();
     initCharts();
