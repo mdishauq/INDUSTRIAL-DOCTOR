@@ -1,0 +1,63 @@
+; =============================================================================
+; ⛔  ARCHIVED — DO NOT USE OR COPY FROM THIS FILE  ⛔
+;
+;  This is a snapshot of the OLD v1.0 platformio configuration.
+;  The LIVE configuration is in platformio.ini (project root).
+;
+;  Known problems in this archived config (all fixed in platformio.ini):
+;    1. Wrong board: 'esp32-s3-devkitc-1' has no PSRAM support
+;    2. flash_mode = dio  → should be qio for N16R8 QIO flash
+;    3. ARDUINO_LOOP_STACK_SIZE=16384 → too small for EI + WiFi + I2S stack
+;    4. Missing custom board JSON (boards/esp32s3_n16r8.json)
+;    5. Missing WDT-related build flags
+;    6. Extra ESP-NN include paths that cause duplicate symbol errors
+;
+;  See platformio.ini for the correct configuration.
+; =============================================================================
+
+
+
+; --- Board Hardware Settings (N16R8) ---
+; We use 'dio' for the flash mode to ensure the bootloader matches the ROM expectations 
+; while keeping 'qio_opi' for the internal memory mapping.
+board_build.flash_mode = dio
+board_build.arduino.memory_type = qio_opi
+board_build.psram_type = opi
+board_upload.flash_size = 16MB
+board_upload.maximum_size = 16777216
+board_build.partitions = default_16MB.csv
+
+; --- Build System Configuration ---
+lib_ldf_mode = deep+
+lib_archive = no
+monitor_speed = 115200
+
+; Your custom script for assembly handling
+extra_scripts = extra_scripts/asm_flags.py
+
+lib_deps =
+    kosme/arduinoFFT @ ^2.0.2
+
+build_flags = 
+    ; Hardware Support
+    -DBOARD_HAS_PSRAM
+    -DESP32S3
+    -DARDUINO_USB_MODE=1
+    -DARDUINO_USB_CDC_ON_BOOT=1
+    
+    ; AI & Performance
+    -DARDUINO_LOOP_STACK_SIZE=16384
+    -DEI_CLASSIFIER_TFLITE_ENABLE_ESP_NN=0
+    -DEI_PORTING_ARDUINO=1
+    
+    ; Include Paths (Fixed typo in the last line from 'inverencing' to 'inferencing')
+    -Ilib/industrial_doctor_inferencing/src
+    -Ilib/industrial_doctor_inferencing/src/edge-impulse-sdk
+    -Ilib/industrial_doctor_inferencing/src/model-parameters
+    -Ilib/industrial_doctor_inferencing/src/tflite-model
+    -Ilib/industrial_doctor_inferencing/src/edge-impulse-sdk/porting/espressif/ESP-NN/include
+    -Ilib/industrial_doctor_inferencing/src/edge-impulse-sdk/porting/espressif/ESP-NN/src/convolution
+    -Ilib/industrial_doctor_inferencing/src/edge-impulse-sdk/porting/espressif/ESP-NN/src/fully_connected
+    -Ilib/industrial_doctor_inferencing/src/edge-impulse-sdk/porting/espressif/ESP-NN/src/pooling
+    -Ilib/industrial_doctor_inferencing/src/edge-impulse-sdk/porting/espressif/ESP-NN/src/activation
+    -Ilib/industrial_doctor_inferencing/src/edge-impulse-sdk/porting/espressif/ESP-NN/src/common

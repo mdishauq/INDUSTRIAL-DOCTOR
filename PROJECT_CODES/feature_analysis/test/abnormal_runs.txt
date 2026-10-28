@@ -1,0 +1,39 @@
+Abnormal Motor Baseline Runs (COM6, 2,000,000 baud)
+
+Run #1 (Simulated Fault)
+- Duration: 35.02 s
+- Samples: 128,442
+- Min: -312,458,240
+- Max: 348,127,232
+- Mean: 2,415.88
+- P50: 1,842,176
+- P90: 68,244,480
+- P95: 92,144,384
+- P99: 135,248,896
+- ABS_P90: 74,212,352
+- ABS_P95: 98,452,480
+- ABS_P99: 142,854,144
+
+Run #2 (Simulated Fault)
+- Duration: 35.05 s
+- Samples: 131,220
+- Min: -325,120,448
+- Max: 362,841,216
+- Mean: 1,942.15
+- P50: 1,924,096
+- P90: 71,452,160
+- P95: 96,842,240
+- P99: 142,120,448
+- ABS_P90: 78,542,160
+- ABS_P95: 102,154,368
+- ABS_P99: 149,240,448
+
+Quick observation
+- Fault Separation: The Abnormal ABS_P99 band (142M to 149M) is nearly double the Healthy ABS_P99 band (74M to 79M).
+- Vibration Intensity: The Min/Max swings are significantly wider, indicating stronger impact or imbalance.
+
+Normalized intuition (if sample >> 16)
+- Healthy ABS_P99: ~756
+- Abnormal ABS_P99: ~1,362 to ~1,452
+- Suggested AI Threshold: 1,100
+- Safety Buffer: about 300 units above healthy state

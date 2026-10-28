@@ -1,0 +1,87 @@
+This technical specification is designed to be fed into an AI coding assistant (like Copilot) to generate the firmware for your STM32-based **Industrial Doctor v2.0**. It follows the professional tiered architecture we discussed, focusing on real-time feature extraction, a state-dependent rolling baseline, and predictive trend analysis.
+
+---
+
+# 📑 **Technical Specification: Predictive Anomaly Detection System**
+
+## **1. System Overview**
+The system performs on-device Digital Signal Processing (DSP) to monitor motor health. It uses a **State-Dependent Exponential Moving Average (EMA)** to distinguish between "Normal Aging" (Predictive) and "Acute Failure" (Anomaly Detection).
+
+---
+
+## **2. Core Firmware Architecture**
+
+### **A. Feature Extraction Layer**
+For every 2048-sample buffer (64ms @ 32kHz), the system must compute the following "Digital Fingerprint":
+1.  **RMS:** $\sqrt{\frac{1}{n} \sum_{i=1}^{n} x_i^2}$
+2.  **Zero Crossing Rate (ZCR):** Rate of sign changes in the signal.
+3.  **Peak Frequency (PeakHz):** The index of the maximum magnitude in the FFT results.
+4.  **Spectral Centroid:** $\frac{\sum (Frequency \times Magnitude)}{\sum Magnitude}$
+5.  **Kurtosis:** Measure of the "pointiness" of the signal distribution (detects impacts).
+6.  **Crest Factor:** $\frac{Peak}{RMS}$ (detects sharp rhythmic clicking).
+
+### **B. The Statistical Memory (Baseline Management)**
+The system maintains two global structs for every feature:
+* **`Calibration_Baseline`:** The fixed Mean ($\mu$) and Standard Deviation ($\sigma$) captured during the initial 10-second "New Machine" setup.
+* **`Rolling_Trend`:** An evolving Mean ($\mu_{roll}$) that tracks the machine's current "Average Health."
+
+---
+
+## **3. The Predictive Logic (State-Dependent EMA)**
+
+### **The Logic Flow:**
+Every 32ms (50% overlap), the system calculates the **Z-Score** of the current features against the `Calibration_Baseline`.
+
+1.  **IF (Z-Score < 3.0) → STATE: NOMINAL**
+    * Update the `Rolling_Trend` using an Exponential Moving Average.
+    * **Formula:** $\mu_{roll} = (\alpha \times Current\_Value) + ((1 - \alpha) \times \mu_{roll})$
+    * *Note:* Use $\alpha = 0.001$ for a slow, stable trend.
+2.  **ELSE IF (Z-Score >= 3.0) → STATE: ANOMALY**
+    * **FREEZE** the `Rolling_Trend` update.
+    * Trigger "Consensus Voting." If 3 consecutive windows are anomalous, raise the **Fault Alert**.
+
+
+
+---
+
+## **4. Predictive Forecasting (Trend Analysis)**
+
+To provide predictive insights, the system compares the **Calibration Baseline** (Day 1) to the **Rolling Trend** (Now).
+
+* **Health Score:** Calculate the percentage shift.
+    * `Health_Index = 100 - (abs(Rolling_Mean - Calibration_Mean) / Calibration_Mean * 100)`
+* **Degradation Slope:** Calculate the change in the Rolling Trend over the last $N$ minutes.
+    * If the slope is consistently positive for **ZCR** or **Kurtosis**, trigger a **"Maintenance Required"** warning.
+
+
+
+---
+
+## **5. Safety "Hardening" (The Sigma Floor)**
+To prevent false alarms on ultra-stable motors, implement a **Sigma Floor**:
+* `Effective_Sigma = max(Stored_Sigma, Sigma_Min)`
+* *Recommended Sigma_Min:* RMS (0.5), PeakHz (10.0), ZCR (0.01).
+
+---
+
+## **6. Advanced Voting Consensus**
+Do not trigger an alarm on a single feature. Use a weighted vote:
+* **Voter 1 (Pitch):** Checks PeakHz Z-score.
+* **Voter 2 (Texture):** Checks ZCR and Kurtosis Z-scores.
+* **Voter 3 (Energy):** Checks RMS and Crest Factor Z-scores.
+* **Decision:** State = FAULT only if $(\text{Voter 1} + \text{Voter 2} + \text{Voter 3}) \geq 2$.
+
+---
+
+## **7. Copilot Implementation Prompt (Copy/Paste this)**
+> "Write C++ code for an STM32 (using CMSIS-DSP) that processes a 2048-sample audio buffer. 1. Extract RMS, ZCR, PeakHz, and Kurtosis. 2. Implement a Z-score calculation using a pre-stored mean and standard deviation. 3. Implement a State-Dependent Exponential Moving Average (EMA) that only updates the rolling mean if the current Z-score is below 3.0. 4. If the Z-score exceeds 3.0 for 3 consecutive cycles, toggle a GPIO pin for Fault Alert. 5. Include a 'Sigma Floor' to prevent division by zero or hyper-sensitivity."
+
+---
+
+## **Summary for Presentation**
+By using this guide, you can prove that your system:
+1.  **Filters Noise:** Through the Stability Veto ($RMS_{Stab}$).
+2.  **Self-Heals:** Through the Rolling Baseline (EMA).
+3.  **Predicts Failure:** By monitoring the "Distance" between the initial calibration and the current rolling trend.
+
+**You are now ready to generate the code and move to the final `fault_friction.csv` recording to validate the Texture/ZCR voter!**

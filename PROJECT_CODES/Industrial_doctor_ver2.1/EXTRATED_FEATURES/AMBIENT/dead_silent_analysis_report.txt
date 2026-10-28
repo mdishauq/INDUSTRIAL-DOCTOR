@@ -1,0 +1,23 @@
+DEAD SILENT BASELINE ANALYSIS REPORT
+====================================
+
+1. DATA SET CHARACTERISTICS
+--------------------------
+- Total Samples: 263
+- RMS Range: 10.12 to 39.81 (Mean: 20.44)
+- RMS Stability: 1.45 to 7.87 (Mean: 3.21)
+- Kurtosis Stability: 0.17 to 0.73 (Mean: 0.41)
+- Peak Frequency (Hz): Primarily focused around 120.0 Hz
+- Zero Crossing Rate (ZCR): 0.00 (Consistent absolute silence)
+
+2. KEY FINDINGS IN AI TRAINING
+-------------------------------
+- Signal Floor: The RMS baseline is very low and extremely consistent.
+- Stability Metrics: The 'Stab' values (Standard Deviation over time) are the most critical. In this silent set, they remain below 5.0. 
+- Spectral Signature: The presence of 50Hz/60Hz/110Hz suggests minor electrical interference or fan hum, which the AI should now treat as 'Normal Silence'.
+
+3. STRATEGY FOR ADVANCED VOTING SYSTEM
+--------------------------------------
+- These values define the 'Class 0' (Dead Silent) boundaries for the Advanced Voting System.
+- Veto Rule: Any signal where RMS_Stab > 10.0 or ZCR > 0.05 should automatically lose its 'Silent' vote.
+- Calibration: This establishes the noise floor; any data matching these characteristics represents a "No Action Required" state.

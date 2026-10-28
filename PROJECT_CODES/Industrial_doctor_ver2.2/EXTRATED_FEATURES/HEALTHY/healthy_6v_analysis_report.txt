@@ -1,0 +1,22 @@
+HEALTHY_6V ANALYSIS REPORT
+====================================
+
+1. DATA SET CHARACTERISTICS
+--------------------------
+- Total Samples: 240
+- Volume (RMS): Range 273.79 to 510.09 (Avg: 335.02)
+- RMS Stability (RMS_Stab): Avg 17.37
+- Peak Frequency (PeakHz): Mode 720.00 Hz (Range: 430.00 - 1460.00 Hz)
+- Zero Crossing Rate (ZCR): Avg 0.1464
+
+2. KEY FINDINGS IN AI TRAINING
+-------------------------------
+- Battery-Acoustic Relationship: The data captures the transition of the motor as voltage drops from 6V toward 4.8V. This defines the "Low Battery" healthy profile.
+- Frequency Resilience: Despite the voltage drop, the motor maintained a dominant resonance mode at 720.0 Hz. The shift from the 8V baseline (680Hz) helps create a "Frequency Corridor."
+- Low-Instability Signature: Even during power degradation, RMS_Stab remained low (17.37), confirming that internal battery discharge is a "Stable" event unlike "Unstable" external noise.
+
+3. STRATEGY FOR ADVANCED VOTING SYSTEM
+--------------------------------------
+- The "Low Power" Vote: The system will now recognize any PeakHz between 500Hz and 800Hz as "Healthy" when RMS is below 350.
+- Voltage-Aware Consensus: By mapping 6V and 8V, the voting system can use a "Sliding Window" for frequency. If voltage is low, it expects a different peak frequency.
+- Fault Prevention: This data provides the baseline to prevent the BMS from misidentifying a slowing motor (due to low battery) as a mechanical bearing failure.

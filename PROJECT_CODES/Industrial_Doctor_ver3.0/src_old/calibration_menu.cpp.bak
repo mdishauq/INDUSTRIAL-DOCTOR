@@ -1,0 +1,365 @@
+// =============================================================================
+//  calibration_menu.cpp  —  Industrial Doctor  |  OLED Calibration UI
+//
+//  BUTTON BUG FIX SUMMARY
+//  ─────────────────────────────────────────────────────────────────────────
+//  Original bug: _lastStateSelect was updated BEFORE the stable-state check,
+//  so by the time DEBOUNCE_MS elapsed, _lastStateSelect already equalled the
+//  new value → the "falling-edge" condition (sel==LOW && last==HIGH) could
+//  never fire → button press never registered.
+//
+//  Fix: two separate variables:
+//    _lastRawBtn  – updated immediately on any change (resets debounce timer)
+//    _stableBtn   – updated only AFTER DEBOUNCE_MS of stability
+//  The press event fires when _stableBtn==HIGH (old) and raw==LOW (new stable).
+// =============================================================================
+
+#include "calibration_menu.h"
+#include <Preferences.h>
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Constructor
+// ─────────────────────────────────────────────────────────────────────────────
+CalibrationMenu::CalibrationMenu()
+    : _display(nullptr), _engine(nullptr),
+      _active(false), _state(MenuState::MAIN), _activeCal(CalType::NONE),
+      _calSel(0), _ambientDone(false), _healthyDone(false),
+      _lastDebounceMs(0), _lastRawBtn(HIGH), _stableBtn(HIGH),
+      _lastJoyMs(0), _calDoneAt(0), _lastRenderMs(0)
+{}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Setup
+// ─────────────────────────────────────────────────────────────────────────────
+void CalibrationMenu::begin(Adafruit_SSD1306& display) {
+    _display    = &display;
+    pinMode(PIN_SW, INPUT_PULLUP);
+    analogReadResolution(12);
+    _lastRawBtn = digitalRead(PIN_SW);
+    _stableBtn  = _lastRawBtn;
+    // Delay first joystick read so we don't misfire on startup
+    _lastJoyMs  = millis();
+}
+
+void CalibrationMenu::setEngine(AnomalyEngine* engine) { _engine = engine; }
+void CalibrationMenu::onStartAmbient(std::function<void()> cb) { _cbAmbient = cb; }
+void CalibrationMenu::onStartHealthy(std::function<void()> cb) { _cbHealthy = cb; }
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Lifecycle
+// ─────────────────────────────────────────────────────────────────────────────
+void CalibrationMenu::activate() {
+    _active     = true;
+    _state      = MenuState::MAIN;
+    _calSel     = 0;
+    _calDoneAt  = 0;
+}
+void CalibrationMenu::deactivate() { _active = false; }
+bool CalibrationMenu::isActive()   const { return _active; }
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Main loop — call every Arduino loop() iteration
+// ─────────────────────────────────────────────────────────────────────────────
+void CalibrationMenu::loop() {
+    if (!_active) return;
+
+    readButtons();
+
+    // ── Auto-return when calibration reaches 100% ────────────────────────────
+    if (_state == MenuState::RUNNING_CAL && _engine) {
+        if (_engine->calibProgress() >= 1.0f) {
+            if (_calDoneAt == 0) _calDoneAt = millis();          // start hold
+            if (millis() - _calDoneAt > 1500) {                  // 1.5 s at 100%
+                notifyCalibrationDone();                          // back to SELECT
+            }
+        } else {
+            _calDoneAt = 0;   // reset if progress drops for any reason
+        }
+    }
+
+    unsigned long now = millis();
+    if (now - _lastRenderMs > 50) {   // ~20 FPS
+        render();
+        _lastRenderMs = now;
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Input — button + joystick
+// ─────────────────────────────────────────────────────────────────────────────
+void CalibrationMenu::readButtons() {
+    unsigned long now = millis();
+
+    // ── Button: corrected debounce ────────────────────────────────────────────
+    int raw = digitalRead(PIN_SW);
+    if (raw != _lastRawBtn) {
+        _lastDebounceMs = now;   // signal changed → restart stability timer
+        _lastRawBtn     = raw;   // track the new raw level
+    }
+    if (now - _lastDebounceMs > DEBOUNCE_MS) {
+        // Signal has been stable — check for falling edge
+        if (_stableBtn == HIGH && raw == LOW) {
+            onButtonPress();
+        }
+        _stableBtn = raw;   // confirm stable state (only here, not before)
+    }
+
+    // ── Joystick: navigate with rate-limiting ─────────────────────────────────
+    if (now - _lastJoyMs > JOY_REPEAT_MS) {
+        int vry = analogRead(PIN_VRY);
+        if (vry < JOY_LOW) {
+            onJoyUp();
+            _lastJoyMs = now;
+        } else if (vry > JOY_HIGH) {
+            onJoyDown();
+            _lastJoyMs = now;
+        }
+    }
+}
+
+void CalibrationMenu::onJoyUp() {
+    if (_state == MenuState::SELECT_CAL && _calSel > 0) _calSel--;
+}
+
+void CalibrationMenu::onJoyDown() {
+    if (_state == MenuState::SELECT_CAL && _calSel < 2) _calSel++;
+}
+
+void CalibrationMenu::onButtonPress() {
+    switch (_state) {
+
+        case MenuState::MAIN:
+            _state  = MenuState::SELECT_CAL;
+            _calSel = 0;
+            break;
+
+        case MenuState::SELECT_CAL:
+            if (_calSel == 0) {
+                _activeCal = CalType::AMBIENT;
+                _state     = MenuState::RUNNING_CAL;
+                _calDoneAt = 0;
+                if (_cbAmbient) _cbAmbient();
+            } else if (_calSel == 1) {
+                _activeCal = CalType::HEALTHY;
+                _state     = MenuState::RUNNING_CAL;
+                _calDoneAt = 0;
+                if (_cbHealthy) _cbHealthy();
+            } else {
+                // BACK → main screen
+                _state = MenuState::MAIN;
+            }
+            break;
+
+        case MenuState::RUNNING_CAL:
+            // No action while running
+            break;
+    }
+}
+
+void CalibrationMenu::notifyCalibrationDone() {
+    if (_activeCal == CalType::AMBIENT) _ambientDone = true;
+    if (_activeCal == CalType::HEALTHY) _healthyDone = true;
+    _activeCal = CalType::NONE;
+    _calDoneAt = 0;
+    _state     = MenuState::SELECT_CAL;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Drawing helpers  (128 × 64 px SSD1306)
+//  textSize(1) → 6 × 8 px per char  |  textSize(2) → 12 × 16 px per char
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Pseudo-bold: print text at x and x+1 to thicken strokes
+void CalibrationMenu::drawBold(const char* text, int x, int y) {
+    _display->setCursor(x,     y); _display->print(text);
+    _display->setCursor(x + 1, y); _display->print(text);
+}
+
+// Center a bold string horizontally (call AFTER setTextSize)
+void CalibrationMenu::drawCenteredBold(const char* text, int y) {
+    int w = strlen(text) * 6;          // textSize(1): 6 px per char
+    int x = max(0, (128 - w) / 2);
+    drawBold(text, x, y);
+}
+
+// Solid white header bar (height=11) with bold black title
+void CalibrationMenu::drawHeader(const char* title) {
+    _display->fillRect(0, 0, 128, 11, SSD1306_WHITE);
+    _display->setTextSize(1);
+    _display->setTextColor(SSD1306_BLACK);
+    int w = strlen(title) * 6;
+    int x = max(0, (128 - w) / 2);
+    _display->setCursor(x,     2); _display->print(title);
+    _display->setCursor(x + 1, 2); _display->print(title);  // bold
+    _display->setTextColor(SSD1306_WHITE);
+}
+
+// Single menu row at pixel y
+// selected → inverted (white bg, black text)
+// done     → shows [+] badge at right edge
+void CalibrationMenu::drawMenuItem(const char* label, int y, bool selected, bool done) {
+    _display->setTextSize(1);
+    if (selected) {
+        _display->fillRect(0, y - 1, 128, 11, SSD1306_WHITE);
+        _display->setTextColor(SSD1306_BLACK);
+    } else {
+        _display->setTextColor(SSD1306_WHITE);
+    }
+
+    // Cursor arrow
+    _display->setCursor(2, y);
+    _display->print(selected ? '>' : ' ');
+
+    // Label (bold)
+    _display->setCursor(10,     y); _display->print(label);
+    _display->setCursor(10 + 1, y); _display->print(label);
+
+    // Completion badge — contrasts with both selected/unselected backgrounds
+    if (done) {
+        _display->setCursor(100, y);
+        _display->print("[+]");
+    }
+
+    _display->setTextColor(SSD1306_WHITE);
+}
+
+// Outlined + filled progress bar
+void CalibrationMenu::drawProgressBar(int x, int y, int w, int h, float progress) {
+    float p    = constrain(progress, 0.0f, 1.0f);
+    int   fill = (int)((w - 2) * p);
+    _display->drawRect(x, y, w, h, SSD1306_WHITE);
+    if (fill > 0) {
+        _display->fillRect(x + 1, y + 1, fill, h - 2, SSD1306_WHITE);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Screen: MAIN  ("START CALIBRATION" splash)
+// ─────────────────────────────────────────────────────────────────────────────
+void CalibrationMenu::renderMain() {
+    _display->clearDisplay();
+    drawHeader("INDUSTRIAL DOCTOR");
+
+    // Double-border box frames the main CTA
+    _display->drawRect(3,  13, 122, 34, SSD1306_WHITE);
+    _display->drawRect(5,  15, 118, 30, SSD1306_WHITE);
+
+    _display->setTextSize(1);
+    _display->setTextColor(SSD1306_WHITE);
+    drawCenteredBold("START", 20);
+    drawCenteredBold("CALIBRATION", 31);
+
+    // Blinking prompt at bottom
+    if ((millis() / 550) % 2) {
+        drawCenteredBold(">> CLICK TO BEGIN <<", 52);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Screen: SELECT CALIBRATION  (Ambient / Healthy / Back)
+// ─────────────────────────────────────────────────────────────────────────────
+void CalibrationMenu::renderSelectCal() {
+    _display->clearDisplay();
+    drawHeader("SELECT CALIBRATION");
+
+    // Row positions: 14, 26, 38  (each row is 11 px tall, 1 px gap)
+    drawMenuItem("START AMBIENT", 14, _calSel == 0, _ambientDone);
+    drawMenuItem("START HEALTHY", 26, _calSel == 1, _healthyDone);
+    drawMenuItem("< BACK",        38, _calSel == 2, false);
+
+    // Nav hint
+    _display->setTextSize(1);
+    _display->setTextColor(SSD1306_WHITE);
+    drawCenteredBold("JOY:NAV  BTN:SELECT", 55);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Screen: RUNNING CALIBRATION  (progress bar + percentage)
+// ─────────────────────────────────────────────────────────────────────────────
+void CalibrationMenu::renderRunning() {
+    _display->clearDisplay();
+
+    const char* hdr = (_activeCal == CalType::AMBIENT) ? "AMBIENT CAL" : "HEALTHY CAL";
+    drawHeader(hdr);
+
+    float progress = _engine ? _engine->calibProgress() : 0.0f;
+
+    // Progress bar: full width minus 4 px margin each side
+    drawProgressBar(4, 14, 120, 14, progress);
+
+    // Large centred percentage (textSize 2 = 12 × 16 px per char)
+    char pctBuf[8];
+    snprintf(pctBuf, sizeof(pctBuf), "%d%%", (int)(progress * 100.0f));
+    _display->setTextSize(2);
+    _display->setTextColor(SSD1306_WHITE);
+    int tw = strlen(pctBuf) * 12;
+    int tx = (128 - tw) / 2;
+    _display->setCursor(tx,     31); _display->print(pctBuf);
+    _display->setCursor(tx + 1, 31); _display->print(pctBuf);  // bold
+
+    // Engine state string
+    _display->setTextSize(1);
+    _display->setTextColor(SSD1306_WHITE);
+
+    const char* stStr = "";
+    if (_engine) {
+        CalibrationState s = _engine->state();
+        if      (s == CAL_WARMUP)     stStr = "WARMING UP...";
+        else if (s == CAL_COLLECTING) stStr = "COLLECTING DATA";
+        else if (s == CAL_SETTLING)   stStr = "SETTLING...";
+        else if (s == CAL_READY)      stStr = "COMPLETE!";
+    }
+    // When holding at 100%, override with done message
+    if (_calDoneAt != 0) stStr = "COMPLETE!";
+
+    int sw = strlen(stStr) * 6;
+    _display->setCursor((128 - sw) / 2, 54);
+    _display->print(stStr);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Render dispatcher
+// ─────────────────────────────────────────────────────────────────────────────
+void CalibrationMenu::render() {
+    if (!_display) return;
+    switch (_state) {
+        case MenuState::MAIN:        renderMain();      break;
+        case MenuState::SELECT_CAL:  renderSelectCal(); break;
+        case MenuState::RUNNING_CAL: renderRunning();   break;
+    }
+    _display->display();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Save calibration profile to NVS (unchanged logic, cleaned up)
+// ─────────────────────────────────────────────────────────────────────────────
+void CalibrationMenu::saveProfile(const MotorProfile& profile, const char* name) {
+    Preferences prefs;
+    prefs.begin("inddoctor", false);
+    String b = String(name) + ":";
+    prefs.putDouble((b + "rms_mean").c_str(),       profile.rms.mean);
+    prefs.putDouble((b + "rms_std").c_str(),        profile.rms.stddev);
+    prefs.putDouble((b + "rmsStab_mean").c_str(),   profile.rmsStab.mean);
+    prefs.putDouble((b + "rmsStab_std").c_str(),    profile.rmsStab.stddev);
+    prefs.putDouble((b + "peak_mean").c_str(),      profile.peakFreq.mean);
+    prefs.putDouble((b + "peak_std").c_str(),       profile.peakFreq.stddev);
+    prefs.putDouble((b + "zcr_mean").c_str(),       profile.zcr.mean);
+    prefs.putDouble((b + "zcr_std").c_str(),        profile.zcr.stddev);
+    prefs.putDouble((b + "cent_mean").c_str(),      profile.centroid.mean);
+    prefs.putDouble((b + "cent_std").c_str(),       profile.centroid.stddev);
+    prefs.putDouble((b + "crest_mean").c_str(),     profile.crest.mean);
+    prefs.putDouble((b + "crest_std").c_str(),      profile.crest.stddev);
+    prefs.putDouble((b + "kurt_mean").c_str(),      profile.kurt.mean);
+    prefs.putDouble((b + "kurt_std").c_str(),       profile.kurt.stddev);
+    prefs.putDouble((b + "ambient_thresh").c_str(), profile.ambientRmsThreshold);
+    prefs.end();
+}
+
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Accessors — declared in header, used by main.cpp to decide when to exit menu
+// ─────────────────────────────────────────────────────────────────────────────
+bool CalibrationMenu::ambientDone()         const { return _ambientDone; }
+bool CalibrationMenu::healthyDone()         const { return _healthyDone; }
+bool CalibrationMenu::allCalibrationsDone() const { return _ambientDone && _healthyDone; }

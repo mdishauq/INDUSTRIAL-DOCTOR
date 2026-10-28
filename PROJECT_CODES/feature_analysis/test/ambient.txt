@@ -1,0 +1,25 @@
+Ambient Baseline (COM6, 2,000,000 baud)
+
+Condition
+- Crowd noise + ceiling fan near microphone
+
+Capture
+- Duration: 60.05 s
+- Samples: 393,172
+- Min: -89,986,112
+- Max: 99,006,944
+- Mean: 1,835.68
+- P50: 61,952
+- P90: 22,945,792
+- P95: 29,925,376
+- P99: 44,069,344
+- ABS_P50: 11,854,336
+- ABS_P90: 30,029,824
+- ABS_P95: 36,434,432
+- ABS_P99: 49,570,368
+- ABS_MAX: 99,006,944
+
+Normalized intuition (if sample >> 16)
+- ABS_P90: ~458
+- ABS_P95: ~556
+- ABS_P99: ~756

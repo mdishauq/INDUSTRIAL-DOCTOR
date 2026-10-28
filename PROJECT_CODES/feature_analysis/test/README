@@ -1,0 +1,1270 @@
+
+This directory is intended for PlatformIO Test Runner and project tests.
+
+Unit Testing is a software testing method by which individual units of
+source code, sets of one or more MCU program modules together with associated
+control data, usage procedures, and operating procedures, are tested to
+determine whether they are fit for use. Unit testing finds problems early
+in the development cycle.
+
+More information about PlatformIO Unit Testing:
+- https://docs.platformio.org/en/latest/advanced/unit-testing/index.html
+
+/**
+ * ============================================================
+ *  INDUSTRIAL DOCTOR v2.0
+ *  Machine Sound Fault Detection System
+ *  Board  : ESP32-S3 N16R8 (16MB Flash | 8MB OPI PSRAM)
+ *  Sensor : INMP441 I2S MEMS Microphone
+ *  Model  : Edge Impulse (abnormalpump / ambient / normalpump)
+ * ============================================================
+ *
+ *  INMP441 Wiring (I2S):
+ *  ┌─────────────┬──────────────┐
+ *  │  INMP441    │  ESP32-S3    │
+ *  ├─────────────┼──────────────┤
+ *  │  VDD        │  3.3V        │
+ *  │  GND        │  GND         │
+ *  │  SD  (data) │  GPIO 11     │
+ *  │  WS  (lrck) │  GPIO 13     │
+ *  │  SCK (bclk) │  GPIO 12     │
+ *  │  L/R        │  GND (left)  │
+ *  └─────────────┴──────────────┘
+ */
+
+#include <Arduino.h>
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <driver/i2s.h>
+#include "WiFi_credentials.hpp"
+#include "industrial_doctor_inferencing.h"
+
+// ─── I2S Pin Definitions (INMP441) ──────────────────────────
+#define I2S_WS   13
+#define I2S_SD   11
+#define I2S_SCK  12
+#define I2S_PORT I2S_NUM_0
+
+
+// ─── Server endpoint (set at runtime based on WiFi choice) ──
+static const char *g_server_url = nullptr;
+
+// ─── Per-class confidence thresholds ─────────────────────────
+#define THRESH_ABNORMAL     0.85f
+#define THRESH_NORMAL       0.80f
+#define THRESH_AMBIENT      0.65f
+
+// ─── RMS Energy Gate ─────────────────────────────────────────
+#define RMS_MACHINE_THRESHOLD   0.015f
+
+// ─── Upload rate limiting ─────────────────────────────────────
+#define UPLOAD_EVERY_N      3
+
+// ─── Machine identity ─────────────────────────────────────────
+#define MACHINE_TYPE        "Centrifugal Water Pump"
+
+// ─── LED Pins ─────────────────────────────────────────────────
+#define LED_NORMAL          38
+#define LED_ABNORMAL        39
+#define LED_BACKGROUND      40
+
+// ─── Class Labels ─────────────────────────────────────────────
+#define LABEL_BACKGROUND    "ambient"
+#define LABEL_NORMAL        "normalpump"
+#define LABEL_ABNORMAL      "abnormalpump"
+
+// ─── Upload queue sizing ──────────────────────────────────────
+#define UPLOAD_QUEUE_DEPTH  4
+#define MAX_STATUS_LEN      32
+#define MAX_DIAG_LEN        64
+
+// ─── Upload packet (copied into queue — no heap/pointer issues) ─
+struct UploadPacket {
+    char     health_status[MAX_STATUS_LEN];
+    char     diagnosis[MAX_DIAG_LEN];
+    float    peak_frequency;
+    float    intensity;
+    float    rms;
+    float    scores[EI_CLASSIFIER_LABEL_COUNT];  // per-class probabilities
+    uint32_t count;                              // inference_count at time of result
+};
+
+// ─── Globals ──────────────────────────────────────────────────
+static float         inference_buffer[EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE];
+static uint32_t      inference_count = 0;
+static QueueHandle_t upload_queue    = nullptr;
+
+// ─── Forward Declarations ─────────────────────────────────────
+static void  i2s_init(void);
+static bool  microphone_inference_start(uint32_t n_samples);
+static bool  microphone_inference_record(void);
+static int   microphone_audio_signal_get_data(size_t offset, size_t length, float *out_ptr);
+static void  run_inference(void);
+static void  set_status_leds(const char *label, float confidence, float threshold);
+static void  connect_wifi(void);
+static float goertzel_power(const float *buf, size_t N, float freq, float fs);
+static float compute_peak_frequency(void);
+static float compute_intensity(float rms_db);
+static void  upload_result(const char *health_status, const char *diagnosis,
+                           float peak_frequency, float intensity,
+                           float rms, const float *scores, uint32_t count);
+static void  upload_task(void *pvParameters);
+
+// ============================================================
+//  WiFi
+// ============================================================
+static void connect_wifi(void)
+{
+    WiFi.mode(WIFI_STA);
+
+    // ── Prompt user via Serial Monitor ───────────────────────
+    Serial.println("\n──────────────────────────────────────");
+    Serial.println("[WiFi] Select network (type number + Enter):");
+    Serial.println("       0 = College WiFi");
+    Serial.println("       1 = Home WiFi");
+    Serial.println("       2 = Offline mode (no upload)");
+    Serial.println("──────────────────────────────────────");
+
+    // Flush any stale bytes, then wait for user input
+    while (Serial.available()) Serial.read();
+    while (!Serial.available()) { delay(100); }
+    int choice = Serial.parseInt();
+
+    switch (choice)
+    {
+    case 0:
+        Serial.println("[WiFi] Connecting to College WiFi...");
+        WiFi.begin(WIFI_SSID_COLLEGE, WIFI_PASSWORD_COLLEGE);
+        g_server_url = SERVER_URL_COLLEGE;
+        break;
+    case 1:
+        Serial.println("[WiFi] Connecting to Home WiFi...");
+        WiFi.begin(WIFI_SSID_HOME, WIFI_PASSWORD_HOME);
+        g_server_url = SERVER_URL_HOME;
+        break;
+    default:
+        Serial.println("[WiFi] Offline mode selected — skipping WiFi");
+        return;
+    }
+    Serial.print("[WiFi] Connecting");
+    for (int i = 0; i < 80 && WiFi.status() != WL_CONNECTED; i++) {
+        delay(500); Serial.print("."); yield();
+    }
+    if (WiFi.status() == WL_CONNECTED) {
+        Serial.printf("\n[WiFi] Connected — IP: %s\n", WiFi.localIP().toString().c_str());
+    } else {
+        Serial.println("\n[WiFi] Timeout — offline mode, inference still runs");
+    }
+}
+
+// ============================================================
+//  Goertzel — compute power at one specific frequency bin
+// ============================================================
+static float goertzel_power(const float *buf, size_t N, float freq, float fs)
+{
+    float k     = freq * (float)N / fs;
+    float omega = 2.0f * (float)M_PI * k / (float)N;
+    float coeff = 2.0f * cosf(omega);
+    float s0 = 0.0f, s1 = 0.0f, s2 = 0.0f;
+    for (size_t i = 0; i < N; i++) {
+        s0 = buf[i] + coeff * s1 - s2;
+        s2 = s1;
+        s1 = s0;
+    }
+    return s1 * s1 + s2 * s2 - coeff * s1 * s2;
+}
+
+// ============================================================
+//  Peak frequency: scan 20–2000 Hz in 2 Hz steps via Goertzel
+// ============================================================
+static float compute_peak_frequency(void)
+{
+    const size_t N  = EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE;
+    const float  fs = (float)EI_CLASSIFIER_FREQUENCY;
+
+    float max_power    = -1.0f;
+    float peak_freq_hz = 0.0f;
+
+    // 10 Hz step → ~198 passes instead of 990 (5× faster, ~1 Hz resolution is fine for diagnostics)
+    for (float f = 20.0f; f <= 2000.0f; f += 10.0f) {
+        float p = goertzel_power(inference_buffer, N, f, fs);
+        if (p > max_power) {
+            max_power    = p;
+            peak_freq_hz = f;
+        }
+    }
+    return peak_freq_hz;
+}
+
+// ============================================================
+//  Intensity: map dBFS (−90..0) → 0–100 scale
+// ============================================================
+static float compute_intensity(float rms_db)
+{
+    float v = ((rms_db + 90.0f) / 90.0f) * 100.0f;
+    if (v < 0.0f)   v = 0.0f;
+    if (v > 100.0f) v = 100.0f;
+    return v;
+}
+
+// ============================================================
+//  HTTP Upload
+//  {
+//    "machine_type"    : "Centrifugal Water Pump",
+//    "peak_frequency"  : 58.4,
+//    "intensity"       : 22.5,
+//    "health_status"   : "Healthy",
+//    "diagnosis"       : "Normal Operation",
+//    "rms"             : 0.018694,
+//    "scores"          : { "abnormalpump": 0.0, "ambient": 0.0039, "normalpump": 0.9961 },
+//    "inference_count" : 42
+//  }
+// ============================================================
+static void upload_result(const char *health_status, const char *diagnosis,
+                          float peak_frequency, float intensity,
+                          float rms, const float *scores, uint32_t count)
+{
+    if (g_server_url == nullptr) return;
+
+    // ── Reconnect if dropped ─────────────────────────────────
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("[WiFi] Disconnected — attempting reconnect...");
+        WiFi.reconnect();
+        uint32_t t = millis();
+        while (WiFi.status() != WL_CONNECTED && millis() - t < 5000) delay(200);
+        if (WiFi.status() != WL_CONNECTED) {
+            Serial.println("[WiFi] Reconnect failed — skipping upload");
+            return;
+        }
+        Serial.println("[WiFi] Reconnected");
+    }
+
+    WiFiClient wifiClient;
+    HTTPClient http;
+    http.begin(wifiClient, g_server_url);
+    http.setTimeout(5000);
+    http.addHeader("Content-Type", "application/json");
+
+    // ── Build scores object from label names + values ─────────
+    String scores_obj = "{";
+    for (size_t i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++) {
+        if (i > 0) scores_obj += ",";
+        scores_obj += "\"";
+        scores_obj += ei_classifier_inferencing_categories[i];
+        scores_obj += "\":";
+        scores_obj += String(scores[i], 4);
+    }
+    scores_obj += "}";
+
+    String payload = "{";
+    payload += "\"machine_type\":\""    + String(MACHINE_TYPE)      + "\",";
+    payload += "\"peak_frequency\":"    + String(peak_frequency, 1) + ",";
+    payload += "\"intensity\":"         + String(intensity, 1)      + ",";
+    payload += "\"health_status\":\""   + String(health_status)     + "\",";
+    payload += "\"diagnosis\":\""       + String(diagnosis)         + "\",";
+    payload += "\"rms\":"              + String(rms, 6)            + ",";
+    payload += "\"scores\":"           + scores_obj                + ",";
+    payload += "\"inference_count\":"  + String(count);
+    payload += "}";
+
+    int code = http.POST(payload);
+    if (code > 0) {
+        Serial.printf("[WiFi] Upload OK (HTTP %d)\n", code);
+    } else {
+        Serial.printf("[WiFi] Upload FAILED (HTTP %d: %s)\n",
+                      code, http.errorToString(code).c_str());
+    }
+    http.end();
+}
+
+// ============================================================
+//  UPLOAD TASK  (Core 0) — consumes queue, sends HTTP POST
+// ============================================================
+static void upload_task(void *pvParameters)
+{
+    (void)pvParameters;
+    UploadPacket pkt;
+    for (;;) {
+        // Block forever until inference pushes a packet
+        if (xQueueReceive(upload_queue, &pkt, portMAX_DELAY) == pdTRUE) {
+            upload_result(pkt.health_status, pkt.diagnosis,
+                          pkt.peak_frequency, pkt.intensity,
+                          pkt.rms, pkt.scores, pkt.count);
+        }
+    }
+}
+
+// ============================================================
+//  SETUP
+// ============================================================
+void setup()
+{
+    Serial.begin(115200);
+    delay(2000);
+
+    Serial.println("╔══════════════════════════════════╗");
+    Serial.println("║      INDUSTRIAL DOCTOR v2.0      ║");
+    Serial.println("║  ESP32-S3 N16R8 | INMP441 Mic    ║");
+    Serial.println("╚══════════════════════════════════╝");
+
+    // ── Status LEDs ──────────────────────────────────────────
+    pinMode(LED_NORMAL,     OUTPUT);
+    pinMode(LED_ABNORMAL,   OUTPUT);
+    pinMode(LED_BACKGROUND, OUTPUT);
+    digitalWrite(LED_NORMAL,     LOW);
+    digitalWrite(LED_ABNORMAL,   LOW);
+    digitalWrite(LED_BACKGROUND, LOW);
+
+    // ── PSRAM / Flash info ───────────────────────────────────
+    if (psramFound())
+        Serial.printf("[INFO] PSRAM        : %.2f MB\n", (float)ESP.getPsramSize() / 1048576.0f);
+    else
+        Serial.println("[WARN] PSRAM NOT found");
+
+    Serial.printf("[INFO] Flash size   : %.0f MB\n",   (float)ESP.getFlashChipSize() / 1048576.0f);
+    Serial.printf("[INFO] Free heap    : %lu bytes\n", ESP.getFreeHeap());
+
+    // ── Model info ───────────────────────────────────────────
+    Serial.println("──────────────────────────────────────");
+    Serial.printf("[EI]  Model         : %s\n",  EI_CLASSIFIER_PROJECT_NAME);
+    Serial.printf("[EI]  Sample rate   : %d Hz\n", EI_CLASSIFIER_FREQUENCY);
+    Serial.printf("[EI]  Window size   : %d samples\n", EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE);
+    Serial.printf("[EI]  Slice size    : %d samples\n", EI_CLASSIFIER_SLICE_SIZE);
+    Serial.printf("[EI]  Classes       : %d\n", EI_CLASSIFIER_LABEL_COUNT);
+    for (size_t i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++)
+        Serial.printf("        [%zu] %s\n", i, ei_classifier_inferencing_categories[i]);
+    Serial.println("──────────────────────────────────────");
+
+    // ── Storage info ─────────────────────────────────────────
+    uint32_t sketchSize = ESP.getSketchSize();
+    uint32_t freeFlash  = ESP.getFreeSketchSpace();
+    uint32_t total      = sketchSize + freeFlash;
+    Serial.printf("[MEM]  Firmware     : %lu KB / %lu KB  (%.1f%%)\n",
+                  sketchSize / 1024, total / 1024, (float)sketchSize / total * 100.0f);
+    Serial.printf("[MEM]  PSRAM free   : %lu KB\n", ESP.getFreePsram() / 1024);
+    Serial.println("──────────────────────────────────────");
+
+    // ── Upload queue + task on Core 0 ─────────────────────────
+    upload_queue = xQueueCreate(UPLOAD_QUEUE_DEPTH, sizeof(UploadPacket));
+    xTaskCreatePinnedToCore(
+        upload_task,    // function
+        "upload_task",  // name
+        8192,           // stack bytes
+        nullptr,        // parameter
+        1,              // priority (lower than inference)
+        nullptr,        // handle (not needed)
+        0               // core 0
+    );
+
+    // ── WiFi ─────────────────────────────────────────────────
+    connect_wifi();
+
+    // ── I2S ──────────────────────────────────────────────────
+    i2s_init();
+
+    if (!microphone_inference_start(EI_CLASSIFIER_SLICE_SIZE)) {
+        Serial.println("[ERROR] Failed to start microphone!");
+        while (true) { delay(1000); }
+    }
+
+    Serial.println("[INFO] System ready – listening...\n");
+}
+
+// ============================================================
+//  LOOP
+// ============================================================
+void loop()
+{
+    if (!microphone_inference_record()) {
+        Serial.println("[WARN] Failed to record audio slice");
+        return;
+    }
+    run_inference();
+}
+
+// ============================================================
+//  I2S INIT
+// ============================================================
+static void i2s_init(void)
+{
+    i2s_config_t cfg = {
+        .mode                 = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX),
+        .sample_rate          = (uint32_t)EI_CLASSIFIER_FREQUENCY,
+        .bits_per_sample      = I2S_BITS_PER_SAMPLE_32BIT,
+        .channel_format       = I2S_CHANNEL_FMT_ONLY_LEFT,
+        .communication_format = I2S_COMM_FORMAT_STAND_I2S,
+        .intr_alloc_flags     = ESP_INTR_FLAG_LEVEL1,
+        .dma_buf_count        = 8,
+        .dma_buf_len          = 512,
+        .use_apll             = false,
+        .tx_desc_auto_clear   = false,
+        .fixed_mclk           = 0
+    };
+    i2s_pin_config_t pins = {
+        .bck_io_num   = I2S_SCK,
+        .ws_io_num    = I2S_WS,
+        .data_out_num = I2S_PIN_NO_CHANGE,
+        .data_in_num  = I2S_SD
+    };
+
+    if (i2s_driver_install(I2S_PORT, &cfg, 0, NULL) != ESP_OK) {
+        Serial.println("[ERROR] I2S driver install failed");
+        while (true) { delay(1000); }
+    }
+    if (i2s_set_pin(I2S_PORT, &pins) != ESP_OK) {
+        Serial.println("[ERROR] I2S set pin failed");
+        while (true) { delay(1000); }
+    }
+    i2s_zero_dma_buffer(I2S_PORT);
+    Serial.println("[INFO] I2S init ✓  (WS=13, SD=11, SCK=12)");
+}
+
+// ============================================================
+//  MICROPHONE
+// ============================================================
+static bool microphone_inference_start(uint32_t n_samples)
+{
+    (void)n_samples;
+    memset(inference_buffer, 0, sizeof(inference_buffer));
+    return true;
+}
+
+static bool microphone_inference_record(void)
+{
+    memmove(inference_buffer,
+            inference_buffer + EI_CLASSIFIER_SLICE_SIZE,
+            (EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE - EI_CLASSIFIER_SLICE_SIZE) * sizeof(float));
+
+    static int32_t raw[EI_CLASSIFIER_SLICE_SIZE];
+    size_t bytes_read = 0;
+
+    esp_err_t err = i2s_read(I2S_PORT, raw,
+                             EI_CLASSIFIER_SLICE_SIZE * sizeof(int32_t),
+                             &bytes_read, portMAX_DELAY);
+
+    if (err != ESP_OK || bytes_read == 0) {
+        Serial.printf("[WARN] i2s_read error: %d\n", err);
+        return false;
+    }
+
+    size_t n    = bytes_read / sizeof(int32_t);
+    float *dest = inference_buffer + (EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE - EI_CLASSIFIER_SLICE_SIZE);
+
+    for (size_t i = 0; i < n; i++)
+        dest[i] = (float)(raw[i] >> 8) / (float)0x7FFFFF;
+
+    return true;
+}
+
+static int microphone_audio_signal_get_data(size_t offset, size_t length, float *out_ptr)
+{
+    memcpy(out_ptr, inference_buffer + offset, length * sizeof(float));
+    return 0;
+}
+
+// ============================================================
+//  INFERENCE
+// ============================================================
+static void run_inference(void)
+{
+    // ── RMS gate ─────────────────────────────────────────────
+    float rms = 0.0f;
+    for (size_t i = 0; i < EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE; i++)
+        rms += inference_buffer[i] * inference_buffer[i];
+    rms = sqrtf(rms / EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE);
+    float rms_db = (rms > 1e-9f) ? 20.0f * log10f(rms) : -90.0f;
+
+    Serial.printf("[RMS]  %.6f  (%.1f dBFS)\n", rms, rms_db);
+
+    if (rms < RMS_MACHINE_THRESHOLD) {
+        inference_count++;
+        Serial.println("──────── INFERENCE RESULT ────────");
+        Serial.printf("  #%lu | [RMS gate] → ambient\n", inference_count);
+        Serial.println("  ○  Background – no machine activity.");
+        Serial.println("──────────────────────────────────\n");
+        set_status_leds(LABEL_BACKGROUND, 1.0f, THRESH_AMBIENT);
+
+        if (inference_count % UPLOAD_EVERY_N == 0) {
+            UploadPacket pkt;
+            strncpy(pkt.health_status, "No Activity",     MAX_STATUS_LEN - 1);
+            pkt.health_status[MAX_STATUS_LEN - 1] = '\0';
+            strncpy(pkt.diagnosis,     "Background Noise", MAX_DIAG_LEN   - 1);
+            pkt.diagnosis[MAX_DIAG_LEN - 1] = '\0';
+            pkt.peak_frequency = 0.0f;
+            pkt.intensity      = compute_intensity(rms_db);
+            pkt.rms            = rms;
+            pkt.count          = inference_count;
+            memset(pkt.scores, 0, sizeof(pkt.scores));  // no classifier ran
+            if (xQueueSend(upload_queue, &pkt, 0) != pdTRUE)
+                Serial.println("[WiFi] Queue full — upload dropped");
+        }
+        return;
+    }
+
+    // ── Run classifier ───────────────────────────────────────
+    signal_t signal;
+    signal.total_length = EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE;
+    signal.get_data     = &microphone_audio_signal_get_data;
+
+    ei_impulse_result_t result = { 0 };
+    EI_IMPULSE_ERROR err = run_classifier(&signal, &result, false);
+
+    if (err != EI_IMPULSE_OK) {
+        Serial.printf("[ERROR] Classifier failed: %d\n", err);
+        return;
+    }
+
+    inference_count++;
+
+    // ── Find top label ───────────────────────────────────────
+    float  scores[EI_CLASSIFIER_LABEL_COUNT];
+    size_t top_idx = 0;
+    float  top_val = 0.0f;
+
+    for (size_t i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++) {
+        scores[i] = result.classification[i].value;
+        if (scores[i] > top_val) { top_val = scores[i]; top_idx = i; }
+    }
+
+    const char *top_label = result.classification[top_idx].label;
+
+    // ── Per-class threshold ───────────────────────────────────
+    float threshold = THRESH_NORMAL;
+    if      (strcmp(top_label, LABEL_ABNORMAL)   == 0) threshold = THRESH_ABNORMAL;
+    else if (strcmp(top_label, LABEL_BACKGROUND) == 0) threshold = THRESH_AMBIENT;
+
+    // ── Map classifier output → health_status + diagnosis ────
+    const char *health_status;
+    const char *diagnosis;
+    if (top_val < threshold) {
+        health_status = "Uncertain";
+        diagnosis     = "Signal Unclear – Retrying";
+    } else if (strcmp(top_label, LABEL_ABNORMAL) == 0) {
+        health_status = "Fault Detected";
+        diagnosis     = "Abnormal Pump Operation";
+    } else if (strcmp(top_label, LABEL_NORMAL) == 0) {
+        health_status = "Healthy";
+        diagnosis     = "Normal Operation";
+    } else {
+        health_status = "No Activity";
+        diagnosis     = "Background Noise";
+    }
+
+    // ── Serial output ─────────────────────────────────────────
+    Serial.println("\n┌─────────────────────────────────────┐");
+    Serial.printf( "│   AI OUTPUT  #%-5lu  RMS: %.4f     │\n", inference_count, rms);
+    Serial.println("├─────────────────────────────────────┤");
+
+    // Bar chart — 20 chars wide = 5% per block
+    for (size_t i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++) {
+        float  pct    = scores[i] * 100.0f;
+        int    filled = (int)(pct / 5.0f);          // 1 block per 5%
+        if (filled > 20) filled = 20;
+
+        char bar[21];
+        for (int b = 0; b < 20; b++) bar[b] = (b < filled) ? '#' : ' ';
+        bar[20] = '\0';
+
+        Serial.printf("│ %-14s [%s] %5.1f%% %s\n",
+                      result.classification[i].label,
+                      bar,
+                      pct,
+                      (i == top_idx) ? "<--" : "   ");
+    }
+
+    Serial.println("├─────────────────────────────────────┤");
+
+    if (top_val >= threshold) {
+        if      (strcmp(top_label, LABEL_ABNORMAL)   == 0)
+            Serial.println("│  ** FAULT DETECTED **               │");
+        else if (strcmp(top_label, LABEL_NORMAL)     == 0)
+            Serial.println("│  >> NORMAL OPERATION                │");
+        else
+            Serial.println("│  -- BACKGROUND / NO MACHINE         │");
+    } else {
+        Serial.printf( "│  ?? UNCERTAIN  (%.1f%% < threshold)    │\n", top_val * 100.0f);
+    }
+
+#if EI_CLASSIFIER_HAS_ANOMALY == 1
+    Serial.printf( "│  Anomaly: %.4f                       │\n", result.anomaly);
+#endif
+    Serial.printf( "│  Heap: %lu  PSRAM: %lu              \n",
+                   ESP.getFreeHeap(), ESP.getFreePsram());
+    Serial.println("└─────────────────────────────────────┘\n");
+
+    // ── LEDs ─────────────────────────────────────────────────
+    set_status_leds(top_label, top_val, threshold);
+
+    // ── Upload (rate limited) — push to queue, Core 0 sends async ─
+    if (inference_count % UPLOAD_EVERY_N == 0) {
+        bool machine_active = (strcmp(health_status, "No Activity") != 0 &&
+                               strcmp(health_status, "Uncertain")   != 0);
+        UploadPacket pkt;
+        strncpy(pkt.health_status, health_status, MAX_STATUS_LEN - 1);
+        pkt.health_status[MAX_STATUS_LEN - 1] = '\0';
+        strncpy(pkt.diagnosis, diagnosis, MAX_DIAG_LEN - 1);
+        pkt.diagnosis[MAX_DIAG_LEN - 1] = '\0';
+        pkt.peak_frequency = machine_active ? compute_peak_frequency() : 0.0f;
+        pkt.intensity      = compute_intensity(rms_db);
+        pkt.rms            = rms;
+        pkt.count          = inference_count;
+        for (size_t i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++)
+            pkt.scores[i] = scores[i];
+        if (xQueueSend(upload_queue, &pkt, 0) != pdTRUE) {
+            Serial.println("[WiFi] Queue full — upload dropped");
+        }
+    }
+}
+
+// ============================================================
+//  LED STATUS
+// ============================================================
+static void set_status_leds(const char *label, float confidence, float threshold)
+{
+    digitalWrite(LED_NORMAL,     LOW);
+    digitalWrite(LED_ABNORMAL,   LOW);
+    digitalWrite(LED_BACKGROUND, LOW);
+
+    if (confidence < threshold) return;
+
+    if      (strcmp(label, LABEL_NORMAL)     == 0) digitalWrite(LED_NORMAL,     HIGH);
+    else if (strcmp(label, LABEL_ABNORMAL)   == 0) digitalWrite(LED_ABNORMAL,   HIGH);
+    else                                            digitalWrite(LED_BACKGROUND, HIGH);
+}
+
+
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+
+/**
+ * ============================================================
+ *  INDUSTRIAL DOCTOR v2.0
+ *  Machine Sound Fault Detection System
+ *  Board  : ESP32-S3 N16R8 (16MB Flash | 8MB OPI PSRAM)
+ *  Sensor : INMP441 I2S MEMS Microphone
+ *  Model  : Edge Impulse (abnormalpump / ambient / normalpump)
+ * ============================================================
+ *
+ *  INMP441 Wiring (I2S):
+ *  ┌─────────────┬──────────────┐
+ *  │  INMP441    │  ESP32-S3    │
+ *  ├─────────────┼──────────────┤
+ *  │  VDD        │  3.3V        │
+ *  │  GND        │  GND         │
+ *  │  SD  (data) │  GPIO 11     │
+ *  │  WS  (lrck) │  GPIO 13     │
+ *  │  SCK (bclk) │  GPIO 12     │
+ *  │  L/R        │  GND (left)  │
+ *  └─────────────┴──────────────┘
+ */
+
+#include <Arduino.h>
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <driver/i2s.h>
+#include "WiFi_credentials.hpp"
+#include "industrial_doctor_inferencing.h"
+#include "boot_animation.h"  
+// ─── I2S Pin Definitions (INMP441) ──────────────────────────
+#define I2S_WS   13
+#define I2S_SD   11
+#define I2S_SCK  12
+#define I2S_PORT I2S_NUM_0
+
+// ─── OLED I2C Pins (ESP32-S3) ───────────────────────────────
+#define OLED_SCL 2
+#define OLED_SDA 1
+#define OLED_ADDR 0x3C
+#define OLED_WIDTH 128
+#define OLED_HEIGHT 64
+#define OLED_RESET -1
+
+
+// ─── Server endpoint (set at runtime based on WiFi choice) ──
+static const char *g_server_url = nullptr;
+
+// ─── RMS Energy Gate ─────────────────────────────────────────
+#define RMS_MACHINE_THRESHOLD   0.015f
+
+// ─── Raw sound level banding ─────────────────────────────────
+#define RAW_RMS_WARN_THRESHOLD  0.050f
+
+// ─── Upload rate limiting ─────────────────────────────────────
+#define UPLOAD_EVERY_N      3
+
+// ─── Machine identity ─────────────────────────────────────────
+#define MACHINE_TYPE        "Centrifugal Water Pump"
+
+// ─── LED Pins ─────────────────────────────────────────────────
+#define LED_NORMAL          38
+#define LED_ABNORMAL        39
+#define LED_BACKGROUND      40
+
+// ─── Upload queue sizing ──────────────────────────────────────
+#define UPLOAD_QUEUE_DEPTH  4
+#define MAX_STATUS_LEN      32
+#define MAX_DIAG_LEN        64
+
+// ─── Upload packet (copied into queue — no heap/pointer issues) ─
+struct UploadPacket {
+    char     health_status[MAX_STATUS_LEN];
+    char     diagnosis[MAX_DIAG_LEN];
+    float    peak_frequency;
+    float    intensity;
+    float    rms;
+    float    scores[EI_CLASSIFIER_LABEL_COUNT];  // per-class probabilities
+    uint32_t count;                              // inference_count at time of result
+};
+
+struct RawMetrics {
+    float rms;
+    float rms_db;
+    float peak_abs;
+    float peak_to_peak;
+    float zcr_percent;
+    float crest_factor;
+    float peak_frequency;
+    float intensity;
+};
+
+// ─── Globals ──────────────────────────────────────────────────
+static float         inference_buffer[EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE];
+static uint32_t      inference_count = 0;
+static QueueHandle_t upload_queue    = nullptr;
+static Adafruit_SSD1306 display(OLED_WIDTH, OLED_HEIGHT, &Wire, OLED_RESET);
+static bool          oled_ready      = false;
+
+// ─── Forward Declarations ─────────────────────────────────────
+static void  i2s_init(void);
+static bool  microphone_inference_start(uint32_t n_samples);
+static bool  microphone_inference_record(void);
+static void  run_inference(void);
+static void  set_raw_level_leds(float rms);
+static void  connect_wifi(void);
+static float goertzel_power(const float *buf, size_t N, float freq, float fs);
+static float compute_peak_frequency(void);
+static float compute_intensity(float rms_db);
+static RawMetrics analyze_raw_sound(void);
+static void  upload_result(const char *health_status, const char *diagnosis,
+                           float peak_frequency, float intensity,
+                           float rms, const float *scores, uint32_t count);
+static void  upload_task(void *pvParameters);
+static void  oled_init(void);
+static void  oled_show_lines(const char *l1, const char *l2, const char *l3, const char *l4);
+
+// ============================================================
+//  WiFi
+// ============================================================
+static void connect_wifi(void)
+{
+    WiFi.mode(WIFI_STA);
+    oled_show_lines("WiFi Setup", "0 College", "1 Home", "2 Offline");
+
+    // ── Prompt user via Serial Monitor ───────────────────────
+    Serial.println("\n──────────────────────────────────────");
+    Serial.println("[WiFi] Select network (type number + Enter):");
+    Serial.println("       0 = College WiFi");
+    Serial.println("       1 = Home WiFi");
+    Serial.println("       2 = Offline mode (no upload)");
+    Serial.println("──────────────────────────────────────");
+
+    // Flush any stale bytes, then wait for user input
+    while (Serial.available()) Serial.read();
+    while (!Serial.available()) { delay(100); }
+    int choice = Serial.parseInt();
+
+    switch (choice)
+    {
+    case 0:
+        Serial.println("[WiFi] Connecting to College WiFi...");
+        oled_show_lines("WiFi", "Connecting...", "Network: College", "Please wait");
+        WiFi.begin(WIFI_SSID_COLLEGE, WIFI_PASSWORD_COLLEGE);
+        g_server_url = SERVER_URL_COLLEGE;
+        break;
+    case 1:
+        Serial.println("[WiFi] Connecting to Home WiFi...");
+        oled_show_lines("WiFi", "Connecting...", "Network: Home", "Please wait");
+        WiFi.begin(WIFI_SSID_HOME, WIFI_PASSWORD_HOME);
+        g_server_url = SERVER_URL_HOME;
+        break;
+    default:
+        Serial.println("[WiFi] Offline mode selected — skipping WiFi");
+        oled_show_lines("WiFi", "Offline mode", "Inference active", "No upload");
+        return;
+    }
+    Serial.print("[WiFi] Connecting");
+    for (int i = 0; i < 80 && WiFi.status() != WL_CONNECTED; i++) {
+        delay(500); Serial.print("."); yield();
+    }
+    if (WiFi.status() == WL_CONNECTED) {
+        Serial.printf("\n[WiFi] Connected — IP: %s\n", WiFi.localIP().toString().c_str());
+        oled_show_lines("WiFi Connected", WiFi.localIP().toString().c_str(), "Upload enabled", "");
+    } else {
+        Serial.println("\n[WiFi] Timeout — offline mode, inference still runs");
+        oled_show_lines("WiFi Timeout", "Inference active", "Upload disabled", "");
+    }
+}
+
+// ============================================================
+//  Goertzel — compute power at one specific frequency bin
+// ============================================================
+static float goertzel_power(const float *buf, size_t N, float freq, float fs)
+{
+    float k     = freq * (float)N / fs;
+    float omega = 2.0f * (float)M_PI * k / (float)N;
+    float coeff = 2.0f * cosf(omega);
+    float s0 = 0.0f, s1 = 0.0f, s2 = 0.0f;
+    for (size_t i = 0; i < N; i++) {
+        s0 = buf[i] + coeff * s1 - s2;
+        s2 = s1;
+        s1 = s0;
+    }
+    return s1 * s1 + s2 * s2 - coeff * s1 * s2;
+}
+
+// ============================================================
+//  Peak frequency: scan 20–2000 Hz in 2 Hz steps via Goertzel
+// ============================================================
+static float compute_peak_frequency(void)
+{
+    const size_t N  = EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE;
+    const float  fs = (float)EI_CLASSIFIER_FREQUENCY;
+
+    float max_power    = -1.0f;
+    float peak_freq_hz = 0.0f;
+
+    // 10 Hz step → ~198 passes instead of 990 (5× faster, ~1 Hz resolution is fine for diagnostics)
+    for (float f = 20.0f; f <= 2000.0f; f += 10.0f) {
+        float p = goertzel_power(inference_buffer, N, f, fs);
+        if (p > max_power) {
+            max_power    = p;
+            peak_freq_hz = f;
+        }
+    }
+    return peak_freq_hz;
+}
+
+// ============================================================
+//  Intensity: map dBFS (−90..0) → 0–100 scale
+// ============================================================
+static float compute_intensity(float rms_db)
+{
+    float v = ((rms_db + 90.0f) / 90.0f) * 100.0f;
+    if (v < 0.0f)   v = 0.0f;
+    if (v > 100.0f) v = 100.0f;
+    return v;
+}
+
+// ============================================================
+//  HTTP Upload
+//  {
+//    "machine_type"    : "Centrifugal Water Pump",
+//    "peak_frequency"  : 58.4,
+//    "intensity"       : 22.5,
+//    "health_status"   : "Healthy",
+//    "diagnosis"       : "Normal Operation",
+//    "rms"             : 0.018694,
+//    "scores"          : { "abnormalpump": 0.0, "ambient": 0.0039, "normalpump": 0.9961 },
+//    "inference_count" : 42
+//  }
+// ============================================================
+static void upload_result(const char *health_status, const char *diagnosis,
+                          float peak_frequency, float intensity,
+                          float rms, const float *scores, uint32_t count)
+{
+    if (g_server_url == nullptr) return;
+
+    // ── Reconnect if dropped ─────────────────────────────────
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("[WiFi] Disconnected — attempting reconnect...");
+        WiFi.reconnect();
+        uint32_t t = millis();
+        while (WiFi.status() != WL_CONNECTED && millis() - t < 5000) delay(200);
+        if (WiFi.status() != WL_CONNECTED) {
+            Serial.println("[WiFi] Reconnect failed — skipping upload");
+            return;
+        }
+        Serial.println("[WiFi] Reconnected");
+    }
+
+    WiFiClient wifiClient;
+    HTTPClient http;
+    http.begin(wifiClient, g_server_url);
+    http.setTimeout(5000);
+    http.addHeader("Content-Type", "application/json");
+
+    // ── Build scores object from label names + values ─────────
+    String scores_obj = "{";
+    for (size_t i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++) {
+        if (i > 0) scores_obj += ",";
+        scores_obj += "\"";
+        scores_obj += ei_classifier_inferencing_categories[i];
+        scores_obj += "\":";
+        scores_obj += String(scores[i], 4);
+    }
+    scores_obj += "}";
+
+    String payload = "{";
+    payload += "\"machine_type\":\""    + String(MACHINE_TYPE)      + "\",";
+    payload += "\"peak_frequency\":"    + String(peak_frequency, 1) + ",";
+    payload += "\"intensity\":"         + String(intensity, 1)      + ",";
+    payload += "\"health_status\":\""   + String(health_status)     + "\",";
+    payload += "\"diagnosis\":\""       + String(diagnosis)         + "\",";
+    payload += "\"rms\":"              + String(rms, 6)            + ",";
+    payload += "\"scores\":"           + scores_obj                + ",";
+    payload += "\"inference_count\":"  + String(count);
+    payload += "}";
+
+    int code = http.POST(payload);
+    if (code > 0) {
+        Serial.printf("[WiFi] Upload OK (HTTP %d)\n", code);
+    } else {
+        Serial.printf("[WiFi] Upload FAILED (HTTP %d: %s)\n",
+                      code, http.errorToString(code).c_str());
+    }
+    http.end();
+}
+
+// ============================================================
+//  UPLOAD TASK  (Core 0) — consumes queue, sends HTTP POST
+// ============================================================
+static void upload_task(void *pvParameters)
+{
+    (void)pvParameters;
+    UploadPacket pkt;
+    for (;;) {
+        // Block forever until inference pushes a packet
+        if (xQueueReceive(upload_queue, &pkt, portMAX_DELAY) == pdTRUE) {
+            upload_result(pkt.health_status, pkt.diagnosis,
+                          pkt.peak_frequency, pkt.intensity,
+                          pkt.rms, pkt.scores, pkt.count);
+        }
+    }
+}
+
+// ============================================================
+//  OLED DISPLAY
+// ============================================================
+static void oled_init(void)
+{
+    Wire.begin(OLED_SDA, OLED_SCL);
+
+    oled_ready = display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR);
+    if (!oled_ready) {
+        Serial.println("[OLED] SSD1306 init failed");
+        return;
+    }
+
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0, 0);
+    display.println("INDUSTRIAL DOCTOR");
+    display.println("OLED READY");
+    display.println("SCL=GPIO2 SDA=GPIO1");
+    display.display();
+}
+
+static void oled_show_lines(const char *l1, const char *l2, const char *l3, const char *l4)
+{
+    if (!oled_ready) return;
+
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0, 0);
+    if (l1) display.println(l1);
+    if (l2) display.println(l2);
+    if (l3) display.println(l3);
+    if (l4) display.println(l4);
+    display.display();
+}
+
+
+// ============================================================
+//  SETUP
+// ============================================================
+void setup()
+{
+    Serial.begin(115200);
+    delay(2000);
+
+    oled_init();
+    oled_boot_animation(display, oled_ready);          
+    oled_show_lines("Booting...", "Industrial Doctor", "Init hardware", "");
+
+    Serial.println("╔══════════════════════════════════╗");
+    Serial.println("║      INDUSTRIAL DOCTOR v2.0      ║");
+    Serial.println("║  ESP32-S3 N16R8 | INMP441 Mic    ║");
+    Serial.println("╚══════════════════════════════════╝");
+
+    // ── Status LEDs ──────────────────────────────────────────
+    pinMode(LED_NORMAL,     OUTPUT);
+    pinMode(LED_ABNORMAL,   OUTPUT);
+    pinMode(LED_BACKGROUND, OUTPUT);
+    digitalWrite(LED_NORMAL,     LOW);
+    digitalWrite(LED_ABNORMAL,   LOW);
+    digitalWrite(LED_BACKGROUND, LOW);
+
+    // ── PSRAM / Flash info ───────────────────────────────────
+    if (psramFound())
+        Serial.printf("[INFO] PSRAM        : %.2f MB\n", (float)ESP.getPsramSize() / 1048576.0f);
+    else
+        Serial.println("[WARN] PSRAM NOT found");
+
+    Serial.printf("[INFO] Flash size   : %.0f MB\n",   (float)ESP.getFlashChipSize() / 1048576.0f);
+    Serial.printf("[INFO] Free heap    : %lu bytes\n", ESP.getFreeHeap());
+
+    // ── Model info ───────────────────────────────────────────
+    Serial.println("──────────────────────────────────────");
+    Serial.printf("[EI]  Model         : %s\n",  EI_CLASSIFIER_PROJECT_NAME);
+    Serial.printf("[EI]  Sample rate   : %d Hz\n", EI_CLASSIFIER_FREQUENCY);
+    Serial.printf("[EI]  Window size   : %d samples\n", EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE);
+    Serial.printf("[EI]  Slice size    : %d samples\n", EI_CLASSIFIER_SLICE_SIZE);
+    Serial.printf("[EI]  Classes       : %d\n", EI_CLASSIFIER_LABEL_COUNT);
+    for (size_t i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++)
+        Serial.printf("        [%zu] %s\n", i, ei_classifier_inferencing_categories[i]);
+    Serial.println("[MODE] Analysis     : RAW SOUND ONLY (classifier bypassed)");
+    Serial.println("──────────────────────────────────────");
+
+    // ── Storage info ─────────────────────────────────────────
+    uint32_t sketchSize = ESP.getSketchSize();
+    uint32_t freeFlash  = ESP.getFreeSketchSpace();
+    uint32_t total      = sketchSize + freeFlash;
+    Serial.printf("[MEM]  Firmware     : %lu KB / %lu KB  (%.1f%%)\n",
+                  sketchSize / 1024, total / 1024, (float)sketchSize / total * 100.0f);
+    Serial.printf("[MEM]  PSRAM free   : %lu KB\n", ESP.getFreePsram() / 1024);
+    Serial.println("──────────────────────────────────────");
+
+    // ── Upload queue + task on Core 0 ─────────────────────────
+    upload_queue = xQueueCreate(UPLOAD_QUEUE_DEPTH, sizeof(UploadPacket));
+    xTaskCreatePinnedToCore(
+        upload_task,    // function
+        "upload_task",  // name
+        8192,           // stack bytes
+        nullptr,        // parameter
+        1,              // priority (lower than inference)
+        nullptr,        // handle (not needed)
+        0               // core 0
+    );
+
+    // ── WiFi ─────────────────────────────────────────────────
+    connect_wifi();
+
+    // ── I2S ──────────────────────────────────────────────────
+    i2s_init();
+
+    if (!microphone_inference_start(EI_CLASSIFIER_SLICE_SIZE)) {
+        Serial.println("[ERROR] Failed to start microphone!");
+        oled_show_lines("ERROR", "Mic init failed", "Check I2S wiring", "");
+        while (true) { delay(1000); }
+    }
+
+    oled_show_lines("System Ready", "Listening...", MACHINE_TYPE, "");
+    Serial.println("[INFO] System ready – listening...\n");
+}
+
+// ============================================================
+//  LOOP
+// ============================================================
+void loop()
+{
+    if (!microphone_inference_record()) {
+        Serial.println("[WARN] Failed to record audio slice");
+        return;
+    }
+    run_inference();
+}
+
+// ============================================================
+//  I2S INIT
+// ============================================================
+static void i2s_init(void)
+{
+    i2s_config_t cfg = {
+        .mode                 = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX),
+        .sample_rate          = (uint32_t)EI_CLASSIFIER_FREQUENCY,
+        .bits_per_sample      = I2S_BITS_PER_SAMPLE_32BIT,
+        .channel_format       = I2S_CHANNEL_FMT_ONLY_LEFT,
+        .communication_format = I2S_COMM_FORMAT_STAND_I2S,
+        .intr_alloc_flags     = ESP_INTR_FLAG_LEVEL1,
+        .dma_buf_count        = 8,
+        .dma_buf_len          = 512,
+        .use_apll             = false,
+        .tx_desc_auto_clear   = false,
+        .fixed_mclk           = 0
+    };
+    i2s_pin_config_t pins = {
+        .bck_io_num   = I2S_SCK,
+        .ws_io_num    = I2S_WS,
+        .data_out_num = I2S_PIN_NO_CHANGE,
+        .data_in_num  = I2S_SD
+    };
+
+    if (i2s_driver_install(I2S_PORT, &cfg, 0, NULL) != ESP_OK) {
+        Serial.println("[ERROR] I2S driver install failed");
+        while (true) { delay(1000); }
+    }
+    if (i2s_set_pin(I2S_PORT, &pins) != ESP_OK) {
+        Serial.println("[ERROR] I2S set pin failed");
+        while (true) { delay(1000); }
+    }
+    i2s_zero_dma_buffer(I2S_PORT);
+    Serial.println("[INFO] I2S init ✓  (WS=13, SD=11, SCK=12)");
+}
+
+// ============================================================
+//  MICROPHONE
+// ============================================================
+static bool microphone_inference_start(uint32_t n_samples)
+{
+    (void)n_samples;
+    memset(inference_buffer, 0, sizeof(inference_buffer));
+    return true;
+}
+
+static bool microphone_inference_record(void)
+{
+    memmove(inference_buffer,
+            inference_buffer + EI_CLASSIFIER_SLICE_SIZE,
+            (EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE - EI_CLASSIFIER_SLICE_SIZE) * sizeof(float));
+
+    static int32_t raw[EI_CLASSIFIER_SLICE_SIZE];
+    size_t bytes_read = 0;
+
+    esp_err_t err = i2s_read(I2S_PORT, raw,
+                             EI_CLASSIFIER_SLICE_SIZE * sizeof(int32_t),
+                             &bytes_read, portMAX_DELAY);
+
+    if (err != ESP_OK || bytes_read == 0) {
+        Serial.printf("[WARN] i2s_read error: %d\n", err);
+        return false;
+    }
+
+    size_t n    = bytes_read / sizeof(int32_t);
+    float *dest = inference_buffer + (EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE - EI_CLASSIFIER_SLICE_SIZE);
+
+    for (size_t i = 0; i < n; i++)
+        dest[i] = (float)(raw[i] >> 8) / (float)0x7FFFFF;
+
+    return true;
+}
+
+static RawMetrics analyze_raw_sound(void)
+{
+    RawMetrics m = { 0 };
+    const size_t N = EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE;
+
+    float sum_sq = 0.0f;
+    float max_v  = -1.0f;
+    float min_v  = 1.0f;
+
+    int sign_changes = 0;
+    int prev_sign = (inference_buffer[0] >= 0.0f) ? 1 : -1;
+
+    for (size_t i = 0; i < N; i++) {
+        float s = inference_buffer[i];
+        sum_sq += s * s;
+
+        if (s > max_v) max_v = s;
+        if (s < min_v) min_v = s;
+
+        int sign = (s >= 0.0f) ? 1 : -1;
+        if (i > 0 && sign != prev_sign) sign_changes++;
+        prev_sign = sign;
+    }
+
+    m.rms          = sqrtf(sum_sq / (float)N);
+    m.rms_db       = (m.rms > 1e-9f) ? 20.0f * log10f(m.rms) : -90.0f;
+    m.peak_abs     = (fabsf(max_v) > fabsf(min_v)) ? fabsf(max_v) : fabsf(min_v);
+    m.peak_to_peak = max_v - min_v;
+    m.zcr_percent  = ((float)sign_changes / (float)(N - 1)) * 100.0f;
+    m.crest_factor = (m.rms > 1e-9f) ? (m.peak_abs / m.rms) : 0.0f;
+    m.peak_frequency = compute_peak_frequency();
+    m.intensity      = compute_intensity(m.rms_db);
+
+    return m;
+}
+
+// ============================================================
+//  INFERENCE
+// ============================================================
+static void run_inference(void)
+{
+    RawMetrics m = analyze_raw_sound();
+    inference_count++;
+
+    const char *state = "ACTIVE";
+    const char *diag  = "Stable Sound";
+
+    if (m.rms < RMS_MACHINE_THRESHOLD) {
+        state = "QUIET";
+        diag  = "Ambient / Motor Off";
+    } else if (m.rms >= RAW_RMS_WARN_THRESHOLD) {
+        state = "LOUD";
+        diag  = "High Vibration/Noise";
+    }
+
+    {
+        char line2[22];
+        char line3[22];
+        char line4[22];
+        snprintf(line2, sizeof(line2), "RMS %.4f %.1fdB", m.rms, m.rms_db);
+        snprintf(line3, sizeof(line3), "Pk %.0fHz Int %.0f%%", m.peak_frequency, m.intensity);
+        snprintf(line4, sizeof(line4), "ZCR %.1f%% CF %.2f", m.zcr_percent, m.crest_factor);
+        oled_show_lines(state, line2, line3, line4);
+    }
+
+    Serial.println("\n┌─────────────────────────────────────┐");
+    Serial.printf( "│ RAW ANALYSIS #%-6lu %-8s │\n", inference_count, state);
+    Serial.println("├─────────────────────────────────────┤");
+    Serial.printf( "│ RMS        : %.6f                    │\n", m.rms);
+    Serial.printf( "│ RMS dBFS   : %6.2f dB                 │\n", m.rms_db);
+    Serial.printf( "│ Peak abs   : %.6f                    │\n", m.peak_abs);
+    Serial.printf( "│ Peak-Peak  : %.6f                    │\n", m.peak_to_peak);
+    Serial.printf( "│ Peak freq  : %6.1f Hz                 │\n", m.peak_frequency);
+    Serial.printf( "│ Intensity  : %6.1f %%                  │\n", m.intensity);
+    Serial.printf( "│ ZCR        : %6.2f %%                  │\n", m.zcr_percent);
+    Serial.printf( "│ Crest fact : %6.2f                    │\n", m.crest_factor);
+    Serial.printf( "│ Heap: %lu  PSRAM: %lu              \n", ESP.getFreeHeap(), ESP.getFreePsram());
+    Serial.println("└─────────────────────────────────────┘");
+
+    set_raw_level_leds(m.rms);
+
+    if (inference_count % UPLOAD_EVERY_N == 0) {
+        UploadPacket pkt;
+        strncpy(pkt.health_status, state, MAX_STATUS_LEN - 1);
+        pkt.health_status[MAX_STATUS_LEN - 1] = '\0';
+        strncpy(pkt.diagnosis, diag, MAX_DIAG_LEN - 1);
+        pkt.diagnosis[MAX_DIAG_LEN - 1] = '\0';
+        pkt.peak_frequency = m.peak_frequency;
+        pkt.intensity      = m.intensity;
+        pkt.rms            = m.rms;
+        pkt.count          = inference_count;
+        memset(pkt.scores, 0, sizeof(pkt.scores));
+        if (xQueueSend(upload_queue, &pkt, 0) != pdTRUE) {
+            Serial.println("[WiFi] Queue full — upload dropped");
+        }
+    }
+}
+
+// ============================================================
+//  LED STATUS
+// ============================================================
+static void set_raw_level_leds(float rms)
+{
+    digitalWrite(LED_NORMAL,     LOW);
+    digitalWrite(LED_ABNORMAL,   LOW);
+    digitalWrite(LED_BACKGROUND, LOW);
+
+    if (rms < RMS_MACHINE_THRESHOLD) {
+        digitalWrite(LED_BACKGROUND, HIGH);
+    } else if (rms >= RAW_RMS_WARN_THRESHOLD) {
+        digitalWrite(LED_ABNORMAL, HIGH);
+    } else {
+        digitalWrite(LED_NORMAL, HIGH);
+    }
+}

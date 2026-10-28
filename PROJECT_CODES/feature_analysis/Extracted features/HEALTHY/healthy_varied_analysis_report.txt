@@ -1,0 +1,22 @@
+HEALTHY_VARIED ANALYSIS REPORT
+====================================
+
+1. DATA SET CHARACTERISTICS
+--------------------------
+- Total Samples: 300
+- Volume (RMS): Range 179.03 to 648.59 (Avg: 373.81)
+- RMS Stability (RMS_Stab): Avg 61.87
+- Peak Frequency (PeakHz): Range 260.00 Hz to 1650.00 Hz
+- Zero Crossing Rate (ZCR): Avg 0.1285
+
+2. KEY FINDINGS IN AI TRAINING
+-------------------------------
+- Dynamic Transition Profile: This dataset successfully captures the "Connective Tissue" between 8V and 6V operation. It teaches the AI how the motor sounds during rapid speed changes.
+- Instability Reclassification: While the RMS_Stab is high (61.87), the AI learns that this specific instability—when paired with a characteristic mechanical ZCR—is a sign of a healthy speed ramp, not external noise.
+- Spectral Fluidity: The wide range of PeakHz (260.0 - 1650.0 Hz) allows the system to build a continuous frequency-tracking map, ensuring it stays locked on the motor even during pulses.
+
+3. STRATEGY FOR ADVANCED VOTING SYSTEM
+--------------------------------------
+- Transition Recognition: If RMS_Stab is high but ZCR remains within the 0.10 - 0.20 range, the system votes "Healthy Transition" to prevent false alarms.
+- Speed-Agnostic Baseline: The ZCR (0.1285) is established as the most reliable "Master Voter" since it remains stable despite the wild changes in speed and volume.
+- Z-Score Integration: The variance found in this report will be used to define the "Safe Standard Deviation" for dynamic operation, allowing the system to distinguish between a fast throttle pulse and a mechanical impact.

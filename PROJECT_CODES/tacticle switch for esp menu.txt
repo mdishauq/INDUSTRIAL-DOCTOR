@@ -1,0 +1,16 @@
+The Bodge Wiring Plan
+Most 5-way tactile switch modules have a common ground (COM or GND) and output pins that connect to that ground when pressed.
+
+GND: Connect to any ground pad on your PCB.
+
+3.3V: (Leave disconnected. Most simple tactile switch modules don't actually need VCC unless they have built-in pull-up resistors or an LED. If it strictly requires VCC, wire it to your 3.3V header).
+
+MID (Select): Solder a bodge wire to GPIO 15
+
+UP: Solder a bodge wire to GPIO 4
+
+DOWN: Solder a bodge wire to GPIO 5
+
+LEFT: Solder a bodge wire to GPIO 6
+
+RIGHT: Solder a bodge wire to GPIO 7

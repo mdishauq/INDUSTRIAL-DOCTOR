@@ -1,0 +1,22 @@
+HEALTHY_8V ANALYSIS REPORT
+====================================
+
+1. DATA SET CHARACTERISTICS
+--------------------------
+- Total Samples: 247
+- Volume (RMS): Range 321.55 to 580.06 (Avg: 421.62)
+- RMS Stability (RMS_Stab): Avg 25.03
+- Peak Frequency (PeakHz): Mode 680.00 Hz (Range: 320.00 - 970.00 Hz)
+- Zero Crossing Rate (ZCR): Avg 0.1779
+
+2. KEY FINDINGS IN AI TRAINING
+-------------------------------
+- The "Golden" Frequency: The motor exhibits a very strong and consistent peak at 680.0 Hz. This serves as the primary identifier for healthy 8V operation.
+- Dynamic Resilience: Even with intentional switch releases (causing RMS to dip to 321.55), the PeakHz and ZCR remained relatively stable. This teaches the AI that speed fluctuations don't necessarily mean "Fault."
+- Mechanical Signature: The average ZCR of 0.1779 captures the "texture" of the gear-pressed shaft. This is a distinct identifier compared to ambient noise or human speech.
+
+3. STRATEGY FOR ADVANCED VOTING SYSTEM
+--------------------------------------
+- Healthy Vote Baseline: For 8V operation, a PeakHz between 600Hz and 750Hz will be the primary "Healthy" vote.
+- The Stability Buffer: By including switch-release data, we set a healthy RMS_Stab limit at ~30. Anything above this (like the 40+ seen in Crowd Noise) will be flagged as environmental interference.
+- High-Confidence State: When RMS > 350 AND PeakHz is near 680.0Hz, the system has a "Double Majority" for a Healthy Motor state, allowing it to ignore background chatter.

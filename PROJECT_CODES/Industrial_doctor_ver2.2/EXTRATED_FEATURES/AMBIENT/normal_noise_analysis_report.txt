@@ -1,0 +1,30 @@
+ADVANCED ANALYSIS REPORT: NORMAL NOISE (SPEECH/ENVIRONMENT)
+==========================================================
+
+1. DATASET CHARACTERISTICS
+--------------------------
+- Total Recorded Samples: 225
+- Volume (RMS): Range 33.91 to 238.06 (Avg: 95.90)
+- Frequency (PeakHz): Range 20.00 Hz to 2000.00 Hz
+- Zero Crossing Rate (ZCR): Avg 0.0520
+
+2. KEY FINDINGS FOR AI TRAINING
+-------------------------------
+- Instability Signature: The 'RMS_Stab' (Standard Deviation of Volume) is the most 
+  distinctive feature. In this noisy set, it averages 29.10, which is 
+  nearly 9x higher than the 'Dead Silent' baseline (3.21).
+- Spectral Breadth: Unlike silence which is flat, this data contains high-frequency 
+  spikes up to 2000Hz. This represents the 'texture' of human speech and electronic 
+  media.
+- ZCR Variance: The Zero Crossing Rate is no longer zero, indicating the presence 
+  of complex, non-periodic waveforms typical of environmental background noise.
+
+3. STRATEGY FOR ADVANCED VOTING SYSTEM
+--------------------------------------
+The data collected here establishes the 'Negative Class' (Noise to be ignored).
+By comparing this against 'Dead Silent' and 'Motor Running' data, we define 
+the voting thresholds:
+- Veto Rule 1: If RMS_Stab > 15.0, the 'Silent' and 'Normal' votes are invalidated.
+- Veto Rule 2: If ZCR > 0.05, it triggers a 'Non-Mechanical Noise' flag.
+- Consensus: The system requires agreement across Stability, Frequency, and 
+  Energy before changing the BMS (Battery Management System) alert state.

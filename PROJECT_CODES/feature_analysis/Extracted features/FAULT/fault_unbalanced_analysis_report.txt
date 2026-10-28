@@ -1,0 +1,24 @@
+FAULT_UNBALANCED (STRUCTURAL LOOSENESS) REPORT
+================================================
+
+1. DATA SET CHARACTERISTICS
+--------------------------
+- Total Samples: 244
+- Volume (RMS): Avg 375.49
+- RMS Stability (RMS_Stab): Avg 12.19
+- Peak Frequency (PeakHz): Mode 290.00 Hz
+- Zero Crossing Rate (ZCR): Avg 0.1025
+- Spectral Centroid: Avg 567.24
+
+2. KEY FINDINGS IN AI TRAINING
+-------------------------------
+- Drastic Frequency Shift: The motor's dominant frequency moved from 680Hz (Healthy) to 290.0Hz. This low-frequency peak is the acoustic signature of mechanical rattling.
+- Spectral Darkening: The Centroid dropped significantly (Avg: 567.24), indicating a "bassier" and "thumpier" sound profile compared to the high-pitched hum of a healthy motor.
+- Texture Transformation: The ZCR dropped to 0.1025, reflecting a change in the acoustic "grain." The mechanical "clatter" from the loose mount dominates the signal.
+
+3. STRATEGY FOR ADVANCED VOTING SYSTEM
+--------------------------------------
+- Structural Looseness Voter: Any PeakHz below 400Hz while operating at 8V will trigger a high-confidence Fault Vote.
+- Centroid Threshold: The system will use the drop in Centroid as a secondary confirmation. If Centroid < 600, it reinforces the Fault classification.
+- Stability Paradox: The AI learns that a low RMS_Stab doesn't always equal health; if the stability is found at a "Fault Frequency" (290.0Hz), it remains a critical error state.
+- Diagnosis: The Industrial Doctor v2.0 will categorize this as "Structural Looseness / Loose Mounting Bolts."

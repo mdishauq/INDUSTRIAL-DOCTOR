@@ -1,0 +1,34 @@
+Healthy Motor Baseline Runs (COM6, 2,000,000 baud)
+
+Run #1 (synchronized)
+- Duration: 35.04 s
+- Samples: 143,062
+- Min: -172,563,456
+- Max: 190,284,288
+- Mean: 1,582.32
+- P50: 437,760
+- P90: 34,373,632
+- P95: 45,118,944
+- P99: 66,540,000
+- ABS_P90: 46,620,608
+- ABS_P95: 56,463,872
+- ABS_P99: 74,649,088
+
+Run #2 (synchronized)
+- Duration: 35.03 s
+- Samples: 103,274
+- Min: -116,067,904
+- Max: 121,448,896
+- Mean: -36.36
+- P50: 917,504
+- P90: 37,229,504
+- P95: 48,263,104
+- P99: 70,103,040
+- ABS_P90: 50,063,872
+- ABS_P95: 60,730,912
+- ABS_P99: 79,068,704
+
+Quick observation
+- Healthy runs are consistently above ambient tail levels.
+- Healthy ABS_P95 band: 56,463,872 to 60,730,912.
+- Healthy ABS_P99 band: 74,649,088 to 79,068,704.

@@ -1,0 +1,4 @@
+ei_cb3d7495375c01b27ea592c7b478bf1c35d237fb53cd5957
+
+command-
+edge-impulse-data-forwarder --api-key ei_cb3d7495375c01b27ea592c7b478bf1c35d237fb53cd5957 --baudrate 2000000 --frequency 16000

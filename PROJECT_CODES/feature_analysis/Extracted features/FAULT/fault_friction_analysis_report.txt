@@ -1,0 +1,31 @@
+FAULT_FRICTION (MECHANICAL WEAR) REPORT
+====================================
+
+1. DATASET CHARACTERISTICS
+--------------------------
+- Total Samples: ~250
+- Volume (RMS): Avg 515.42 (Significantly higher than Healthy 8V: 421.62)
+- RMS Stability (RMS_Stab): Range 14.54 to 172.82 (Avg: 16.50 during steady friction)
+- Peak Frequency (PeakHz): Consistent at 670.0 Hz
+- Zero Crossing Rate (ZCR): Avg 0.2585 (Highest of all classes)
+- Spectral Centroid: Avg 784.10 (Spectral Brightening)
+
+2. KEY FINDINGS IN AI TRAINING
+-------------------------------
+- The "Texture" Signature: The most distinctive feature of friction is the ZCR. It jumped from the Healthy baseline of 0.17 to 0.25+. This proves that mechanical scraping creates high-frequency "chatter" that crosses the zero-axis much more often than a smooth rotation.
+- Spectral Brightening: Unlike the "Unbalanced" fault which made the motor sound deeper (Centroid < 600), "Friction" makes the motor sound sharper. The Centroid rose to nearly 800 Hz. This allows the AI to distinguish between Structural Looseness and Bearing Wear.
+- Stability Veto Validation: The "Slips" at the start of the recording (where RMS_Stab hit 172) provided excellent data for the Stability Veto. It confirms that during an accidental noise or a "slip," the AI should ignore the data. Once the friction became steady, the RMS_Stab dropped to 16.5, signaling a "Persistent Fault."
+
+3. STRATEGY FOR ADVANCED VOTING SYSTEM
+--------------------------------------
+- Texture Voter (Primary): Any ZCR value > 0.23 will trigger a high-confidence "Friction/Wear" vote.
+- Centroid Threshold (Secondary): If Centroid > 750, it confirms that the energy shift is moving toward high-frequency noise, typical of dry bearings or foreign object interference.
+- Consensus Rule: IF ZCR is High AND Centroid is High AND PeakHz remains at the motor's operating frequency -> Classify as "FAULT: FRICTION / WEAR".
+
+4. DIAGNOSTIC COMPARISON (THE "DOCTOR'S" LOGIC)
+-----------------------------------------------
+| Feature    | Healthy 8V | Fault: Unbalanced | Fault: Friction |
+|------------|------------|-------------------|-----------------|
+| PeakHz     | 680 Hz     | 290 Hz (Low)      | 670 Hz (Stable) |
+| ZCR        | 0.17       | 0.10 (Grainy)     | 0.25 (Hissy)    |
+| Centroid   | 680        | 567 (Dark)        | 784 (Bright)    |
